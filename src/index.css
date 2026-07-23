@@ -159,19 +159,22 @@ html, body {
   transform: scale(0.95);
 }
 
-/* Semáforo de Agotamiento (Bordes e Indicadores) */
+/* Semáforo de Agotamiento (Bordes, Glows y Resplandor por Estado) */
 .product-tile.status-healthy {
   border-color: #2ECC71;
+  box-shadow: 0 4px 14px rgba(46, 204, 113, 0.18);
   background-color: #FFFFFF;
 }
 
 .product-tile.status-warning {
   border-color: #F39C12;
+  box-shadow: 0 4px 14px rgba(243, 156, 18, 0.22);
   background-color: #FFFDF8;
 }
 
 .product-tile.status-critical {
   border-color: #E74C3C;
+  box-shadow: 0 4px 14px rgba(231, 76, 60, 0.25);
   background-color: #FFF8F8;
 }
 
@@ -189,17 +192,17 @@ html, body {
 
 .status-indicator-badge.status-healthy {
   background-color: #2ECC71;
-  box-shadow: 0 0 6px rgba(46, 204, 113, 0.4);
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
 }
 
 .status-indicator-badge.status-warning {
   background-color: #F39C12;
-  box-shadow: 0 0 6px rgba(243, 156, 18, 0.4);
+  box-shadow: 0 0 8px rgba(243, 156, 18, 0.6);
 }
 
 .status-indicator-badge.status-critical {
   background-color: #E74C3C;
-  box-shadow: 0 0 6px rgba(231, 76, 60, 0.4);
+  box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
 }
 
 /* Modo Supermercado Checklist Styling */

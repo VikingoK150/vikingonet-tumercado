@@ -60,7 +60,7 @@ export function ProductTile({
 
   return (
     <div 
-      className={`product-tile ${isShoppingMode ? 'shopping-mode-tile' : ''} ${isCheckedInCart ? 'in-cart' : ''}`}
+      className={`product-tile ${statusClass} ${isShoppingMode ? 'shopping-mode-tile' : ''} ${isCheckedInCart ? 'in-cart' : ''}`}
       onClick={() => {
         if (isShoppingMode) {
           triggerHaptic(30);
