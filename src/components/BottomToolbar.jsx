@@ -248,12 +248,35 @@ export function BottomToolbar({
                 <ChevronDown size={14} color="var(--text-secondary)" />
               </button>
 
+              {/* Botón de Reporte de Última Compra */}
+              <button
+                type="button"
+                onClick={() => { triggerHaptic(20); if (onOpenLastPurchaseModal) onOpenLastPurchaseModal(); }}
+                style={{
+                  padding: '9px 10px',
+                  backgroundColor: '#E8F8F0',
+                  border: '1px solid #2ECC71',
+                  borderRadius: '12px',
+                  color: '#27AE60',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer'
+                }}
+                title="Ver reporte de última compra"
+              >
+                <ClipboardList size={15} />
+                <span>Última Compra</span>
+              </button>
+
               {/* Botón de Compartir Lista en WhatsApp/Telegram */}
               <button
                 type="button"
                 onClick={() => { triggerHaptic(20); onOpenShareModal(); }}
                 style={{
-                  padding: '9px 12px',
+                  padding: '9px 10px',
                   backgroundColor: '#FDEEEB',
                   border: '1px solid var(--color-terracota)',
                   borderRadius: '12px',
@@ -262,7 +285,7 @@ export function BottomToolbar({
                   fontWeight: '700',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '5px',
                   cursor: 'pointer'
                 }}
                 title="Compartir lista en WhatsApp o Telegram"

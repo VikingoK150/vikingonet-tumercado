@@ -44,7 +44,7 @@ export function AIQueryModal({ activeItems = [], onProcessAIResult, onClose }) {
 
       const systemInstruction = `
 Eres el Asistente Inteligente Vikingo de TuMercadoVikingo y SaldoVikingo.
-Tu objetivo es analizar entradas del usuario (texto en lenguaje natural, notas de voz o fotos de recibos/facturas/tickets de supermercado o listas de compras) y realizar las acciones correspondientes tanto en la despensa (TuMercadoVikingo) como en la contabilidad financiera (SaldoVikingo).
+Tu objetivo es analizar entradas del usuario (texto en lenguaje natural, notas de voz o fotos de recibos/facturas/tickets del SENIAT o supermercado) y extraer con alta precisión los movimientos tanto para la despensa (TuMercadoVikingo) como para la contabilidad (SaldoVikingo).
 
 Inventario Actual del Usuario:
 ${currentInventoryText || 'No hay productos en el inventario.'}
@@ -54,61 +54,46 @@ ${existingCategories.join(', ') || 'Alimentos, Limpieza, Bebidas, Otros'}
 
 Fecha de hoy: ${todayStr}
 
+### 🔴 REGLA DE ORO PARA FACTURAS / TICKETS / RECIBOS (FOTOS O TEXTO):
+Si la entrada es la foto o texto de una factura o ticket de caja (ej. HIPERMERCADO FAMOSO, Automercado, Farmacia, etc.):
+1. **Factura o Recibo:** Lee la Razón Social / Nombre del Comercio (ej. "Hipermercado Famoso C.A"), el Monto Total (ej. "TOTAL Bs 688,36") y la fecha.
+2. **Productos y Pesos:** Extrae cada producto con su peso/unidad exacto (ej. "0,552xBs 1.247,02 000017 CEBOLLA P/KG" -> 0.552 kg Cebolla, monto 688.36 Bs).
+3. **DEBES OBLIGATORIAMENTE GENERAR DOS TIPOS DE ACCIONES:**
+   a) register_saldo_transaction: Para registrar la factura completa en SaldoVikingo con su desglose de items y precios.
+   b) update_stock o create: Para sumar el peso/cantidad comprada a la despensa en TuMercadoVikingo.
+
 ### 🟢 Normalización Inteligente de Alimentos y Pesos:
-- Transforma automáticamente gramos a kilos: 650g -> 0.65 kg, 500g / medio kilo -> 0.5 kg, 250g -> 0.25 kg, 800g -> 0.8 kg.
+- Transforma automáticamente gramos a kilos: 650g -> 0.65 kg, 552g -> 0.552 kg, 500g -> 0.5 kg, 250g -> 0.25 kg.
 - Asigna unidades estándar: "kg", "unid", "L", "paq".
 - Selecciona el emoji más adecuado para cada producto (ej. Cebolla 🧅, Tomate 🍅, Pera 🍐, Manzana 🍎, Papa 🥔, Carne 🥩, Pollo 🍗, Queso 🧀, Leche 🥛, Pan/Harina 🍞, Arroz 🍚).
-
-### 🔴 REGISTRAR COMPRA / MOVIMIENTO EN SALDOVIKINGO:
-Si el usuario envía la FOTO DE UNA FACTURA/TICKET DE COMPRA o un MENSAJE DE TEXTO/AUDIO indicando compras realizadas (ej. "Compré 650g de cebolla por 35 Bs y 2kg de tomate por 80 Bs", "Ayer hice mercado de 45$"):
-1. DEBES generar una acción "type": "register_saldo_transaction":
-   {
-     "type": "register_saldo_transaction",
-     "mainDescription": "Mercado",
-     "category": "Alimentos/Automercado",
-     "amount_original": 115,
-     "currency_original": "VES",
-     "date": "${todayStr}",
-     "breakdown": [
-       { "description": "0.65 kg Cebolla", "amount": 35 },
-       { "description": "2 kg Tomate", "amount": 80 }
-     ]
-   }
-2. Y DEBES incluir las acciones de inventario correspondientes ("update_stock" para sumar al stock existente o "create" para productos nuevos en TuMercadoVikingo).
 
 Reglas Estrictas de Respuesta en JSON:
 Devuelve UNICAMENTE un objeto JSON válido con la siguiente estructura:
 {
-  "reply": "Explicación breve y amigable en español de lo que realizaste o respondiste",
+  "reply": "Explicación breve y amigable en español de lo que detectaste en la factura o mensaje",
   "actions": [
-    ... arreglo de acciones a ejecutar sobre la base de datos Supabase ...
+    ... arreglo de acciones a ejecutar ...
   ]
 }
 
 Tipos de Acciones Soportadas en "actions":
-1. Crear Producto Nuevo:
+1. Registrar Movimiento Financiero en SaldoVikingo:
+   {"type": "register_saldo_transaction", "mainDescription": "NombreComercio O Mercado", "category": "Alimentos/Automercado", "amount_original": número, "currency_original": "VES"|"USD"|"USDT"|"EUR", "date": "YYYY-MM-DD", "breakdown": [{"description": "0.552 kg Cebolla", "amount": 688.36}]}
+
+2. Crear Producto Nuevo en Despensa:
    {"type": "create", "name": "Nombre", "quantity": número, "unit": "unid"|"kg"|"L"|"paq", "min_threshold": número, "category": "Categoría", "emoji": "emoji"}
 
-2. Registrar Movimiento Financiero en SaldoVikingo:
-   {"type": "register_saldo_transaction", "mainDescription": "Mercado", "category": "Alimentos/Automercado", "amount_original": número, "currency_original": "VES"|"USD"|"USDT"|"EUR", "date": "YYYY-MM-DD", "breakdown": [{"description": "0.65 kg Cebolla", "amount": 35}]}
+3. Ajustar Stock Actual (Fijar valor exacto o sumar/restar):
+   {"type": "update_stock", "target_id": "ID_DEL_ITEM", "target_name": "Nombre", "mode": "set"|"add", "quantity": número}
 
-3. Organizar / Recategorizar / Modificar Atributos (Nombre, Categoría, Unidad, Emoji):
+4. Organizar / Recategorizar / Modificar Atributos:
    {"type": "update_item", "target_id": "ID_DEL_ITEM", "fields": {"category": "NombreCategoría", "emoji": "emoji"}}
 
-4. Cambiar Mínimo de Alerta (en TODOS los productos o en uno específico):
+5. Cambiar Mínimo de Alerta:
    {"type": "update_threshold", "target_all": true, "min_threshold": 0}
-   o {"type": "update_threshold", "target_id": "ID_DEL_ITEM", "min_threshold": número}
-
-5. Ajustar Stock Actual (Fijar valor exacto o sumar/restar):
-   {"type": "update_stock", "target_id": "ID_DEL_ITEM", "target_name": "Nombre", "mode": "set"|"add", "quantity": número}
 
 6. Eliminar Producto:
    {"type": "delete", "target_id": "ID_DEL_ITEM", "target_name": "Nombre"}
-
-Si el usuario solo hace una pregunta ("¿Qué me falta?", "¿Tengo leche?"), la lista "actions" estará vacía [] y responderás en "reply".
-
-CRÍTICO — FILTRADO DE TICKETS / FACTURAS DE COMPRA:
-Si el usuario envía la foto de una factura o una lista con compras variadas, DEBES EXTRAER E INCLUIR ÚNICAMENTE los ítems que pertenezcan a la despensa y al supermercado (Alimentos, Víveres, Carnes, Pescados, Lácteos, Vegetales, Frutas, Bebidas, Dulces/Snacks, Limpieza e Higiene del Hogar).
 `;
 
       const contents = [];
@@ -151,9 +136,7 @@ Si el usuario envía la foto de una factura o una lista con compras variadas, DE
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         setAiResponse(parsed);
-        if (parsed.actions && parsed.actions.length > 0 && onProcessAIResult) {
-          await onProcessAIResult(parsed.actions);
-        }
+        // NO auto-ejecutar inmediatamente; requerir confirmación del usuario
       } else {
         setAiResponse({ reply: responseText, actions: [] });
       }
@@ -162,6 +145,28 @@ Si el usuario envía la foto de una factura o una lista con compras variadas, DE
       setAiResponse({ reply: `❌ Error de IA: ${err.message}`, actions: [] });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const [applying, setApplying] = useState(false);
+  const [appliedSuccess, setAppliedSuccess] = useState(false);
+
+  const handleConfirmAndApply = async () => {
+    if (!aiResponse || !aiResponse.actions || aiResponse.actions.length === 0) return;
+    triggerHaptic(50);
+    setApplying(true);
+    try {
+      if (onProcessAIResult) {
+        await onProcessAIResult(aiResponse.actions);
+      }
+      setAppliedSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 1200);
+    } catch (e) {
+      console.error("Error al aplicar acciones confirmadas por usuario:", e);
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -179,7 +184,7 @@ Si el usuario envía la foto de una factura o una lista con compras variadas, DE
         </div>
 
         <p className="ai-modal-desc">
-          Escanea tu factura, ticket o describe tu compra en texto/audio (ej: "Compré 650g de cebolla por 35 Bs") para registrarla en SaldoVikingo y actualizar TuMercado.
+          Escanea tu factura o escribe tu compra. La IA detectará los montos para SaldoVikingo y el stock para TuMercado antes de pedirte confirmación.
         </p>
 
         {/* Input Text / Dictado */}
@@ -187,7 +192,7 @@ Si el usuario envía la foto de una factura o una lista con compras variadas, DE
           <textarea
             className="form-textarea"
             rows={3}
-            placeholder="Ej: 'Compré 650g de cebolla por 35 Bs y 2kg de papa por 80 Bs en el mercado'"
+            placeholder="Ej: 'Compré 650g de cebolla por 35 Bs y 2kg de papa por 80 Bs en Hipermercado Famoso'"
             value={promptText}
             onChange={e => setPromptText(e.target.value)}
           />
@@ -203,55 +208,100 @@ Si el usuario envía la foto de una factura o una lista con compras variadas, DE
           {selectedImage && <span className="file-status">📷 Imagen cargada</span>}
         </div>
 
-        {/* Botón Ejecutar */}
+        {/* Botón Ejecutar Análisis */}
         <button 
           className="btn-modal btn-primary btn-ai-run"
           onClick={handleRunAI}
           disabled={loading || (!promptText.trim() && !selectedImage)}
         >
           {loading ? <Loader2 size={18} className="spinner" /> : <Send size={18} />}
-          <span>{loading ? 'Procesando con IA...' : 'Ejecutar Orden con IA'}</span>
+          <span>{loading ? 'Analizando Entrada con IA...' : 'Analizar Entrada con IA'}</span>
         </button>
 
-        {/* Respuesta de la IA */}
+        {/* Respuesta de la IA y Ventana de Confirmación antes de Aplicar */}
         {aiResponse && (
-          <div className="ai-response-box">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-              <CheckCircle2 size={16} color="#2ECC71" />
-              <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '700' }}>Resultado de la IA:</h4>
+          <div className="ai-response-box" style={{ marginTop: '14px', border: '1.5px solid #2ECC71', backgroundColor: '#F8FDF9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <CheckCircle2 size={18} color="#2ECC71" />
+              <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#1E8449' }}>
+                Resumen Detectado por la IA:
+              </h4>
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-primary)', marginBottom: '8px' }}>{aiResponse.reply}</p>
+            <p style={{ fontSize: '12px', color: '#2C3E50', marginBottom: '10px', lineHeight: '1.4' }}>{aiResponse.reply}</p>
 
-            {aiResponse.actions && aiResponse.actions.length > 0 && (
-              <div className="ai-actions-preview" style={{ backgroundColor: '#E8F8F0', padding: '8px 12px', borderRadius: '10px', border: '1px solid #2ECC71' }}>
-                <h5 style={{ fontSize: '11px', fontWeight: '700', color: '#27AE60', marginBottom: '4px' }}>
-                  ⚡ Acciones Ejecutadas:
+            {aiResponse.actions && aiResponse.actions.length > 0 ? (
+              <div className="ai-actions-preview" style={{ backgroundColor: '#FFFFFF', padding: '10px 12px', borderRadius: '10px', border: '1px solid #D5F5E3' }}>
+                <h5 style={{ fontSize: '11px', fontWeight: '800', color: '#27AE60', marginBottom: '6px', textTransform: 'uppercase' }}>
+                  📋 Movimientos a Confirmar y Aplicar:
                 </h5>
-                <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#2C3E50' }}>
+                <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: '#2C3E50', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {aiResponse.actions.map((act, idx) => (
                     <li key={idx}>
                       {act.type === 'register_saldo_transaction' && (
-                        <span>💳 Registrada compra desglosada en <strong>SaldoVikingo</strong> ({act.amount_original} {act.currency_original || 'VES'})</span>
+                        <span>💳 <strong>SaldoVikingo:</strong> Gasto de <strong>{act.amount_original} {act.currency_original || 'VES'}</strong> en "{act.mainDescription || 'Mercado'}"</span>
                       )}
                       {act.type === 'update_threshold' && (
-                        <span>🔄 Mínimo de alerta cambiado a <strong>{act.min_threshold}</strong> {act.target_all ? 'en TODOS los productos' : ''}</span>
+                        <span>🔄 <strong>TuMercado:</strong> Mínimo de alerta en <strong>{act.min_threshold}</strong> {act.target_all ? 'para TODOS' : ''}</span>
                       )}
                       {(act.type === 'create' || act.type === 'add') && (
-                        <span>➕ Creado {act.emoji} <strong>{act.name}</strong> ({act.quantity} {act.unit})</span>
+                        <span>➕ <strong>TuMercado:</strong> Crear producto {act.emoji} <strong>{act.name}</strong> ({act.quantity} {act.unit})</span>
                       )}
                       {act.type === 'update_stock' && (
-                        <span>✏️ Stock de <strong>{act.target_id || act.target_name}</strong> {act.mode === 'add' ? `+${act.quantity}` : `actualizado a ${act.quantity}`}</span>
+                        <span>✏️ <strong>TuMercado:</strong> Stock de <strong>{act.target_id || act.target_name}</strong> {act.mode === 'add' ? `+${act.quantity}` : `fijado en ${act.quantity}`}</span>
                       )}
                       {act.type === 'update_item' && (
-                        <span>✏️ Actualizados campos en {act.target_all ? 'todos los productos' : 'producto'}</span>
+                        <span>✏️ <strong>TuMercado:</strong> Actualizar datos en producto</span>
                       )}
                       {act.type === 'delete' && (
-                        <span>🗑️ Eliminado producto</span>
+                        <span>🗑️ <strong>TuMercado:</strong> Eliminar producto</span>
                       )}
                     </li>
                   ))}
                 </ul>
+
+                {/* Botón de Confirmación Definitiva */}
+                <button
+                  type="button"
+                  onClick={handleConfirmAndApply}
+                  disabled={applying || appliedSuccess}
+                  style={{
+                    width: '100%',
+                    marginTop: '12px',
+                    padding: '12px',
+                    backgroundColor: appliedSuccess ? '#27AE60' : '#2ECC71',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 3px 8px rgba(46, 204, 113, 0.3)'
+                  }}
+                >
+                  {applying ? (
+                    <Loader2 size={16} className="spinner" />
+                  ) : appliedSuccess ? (
+                    <CheckCircle2 size={16} />
+                  ) : (
+                    <CheckCircle2 size={16} />
+                  )}
+                  <span>
+                    {applying 
+                      ? 'Aplicando Movimientos...' 
+                      : appliedSuccess 
+                      ? '¡Aplicado con Éxito!' 
+                      : '⚡ Confirmar y Aplicar en SaldoVikingo y TuMercado'}
+                  </span>
+                </button>
               </div>
+            ) : (
+              <p style={{ fontSize: '11px', color: '#7F8C8D', margin: 0 }}>
+                No se detectaron acciones de modificación. (Es una consulta informativa).
+              </p>
             )}
           </div>
         )}

@@ -552,19 +552,24 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          {/* Botón de Última Compra */}
-          {lastPurchaseData && (
-            <button 
-              type="button"
-              className="header-badge-btn" 
-              onClick={() => setShowLastPurchaseModal(true)}
-              style={{ backgroundColor: '#E8F8F0', color: '#27AE60', borderColor: 'rgba(39, 174, 96, 0.3)', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}
-              title="Ver Reporte de Última Compra"
-            >
-              <ClipboardList size={13} />
-              <span>Última Compra</span>
-            </button>
-          )}
+          {/* Botón de Última Compra (Siempre visible) */}
+          <button 
+            type="button"
+            className="header-badge-btn" 
+            onClick={() => setShowLastPurchaseModal(true)}
+            style={{ 
+              backgroundColor: lastPurchaseData ? '#E8F8F0' : '#F5F2EC', 
+              color: lastPurchaseData ? '#27AE60' : 'var(--text-secondary)', 
+              borderColor: lastPurchaseData ? 'rgba(39, 174, 96, 0.3)' : '#E5E0D5', 
+              padding: '4px 8px', 
+              fontSize: '11px', 
+              fontWeight: '700' 
+            }}
+            title="Ver Reporte de Última Compra"
+          >
+            <ClipboardList size={13} />
+            <span>Última Compra</span>
+          </button>
 
           {/* Botón de Compartir Lista */}
           <button 
