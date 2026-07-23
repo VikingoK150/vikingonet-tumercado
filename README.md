@@ -28,26 +28,26 @@ Una SPA (*Single Page Application*) construida en **React + Vite**, optimizada e
 
 ```mermaid
 graph TD
-    UserSV[Usuario en SaldoVikingo / Telegram] -->|1. Registra Gasto de Alimentos| NetlifyFn[Netlify Functions: process-input / telegram-webhook]
-    NetlifyFn -->|2. Procesa con Gemini API| Gemini[Google Gemini Multimodal API]
-    Gemini -->|3. Extrae desglose e ítems| SyncHelper[syncFoodToMarketInventory Helper]
+    UserSV["Usuario en SaldoVikingo / Telegram"] -->|1. Registra Gasto de Alimentos| NetlifyFn["Netlify Functions: process-input / telegram-webhook"]
+    NetlifyFn -->|2. Procesa con Gemini API| Gemini["Google Gemini Multimodal API"]
+    Gemini -->|3. Extrae desglose e ítems| SyncHelper["syncFoodToMarketInventory Helper"]
     
-    SyncHelper -->|4. Consulta Normalizada .toLowerCase.trim| SupabaseDB[(Supabase DB: market_inventory)]
+    SyncHelper -->|4. Consulta Normalizada .toLowerCase.trim| SupabaseDB[("(Supabase DB: market_inventory)")]
     
-    SupabaseDB -->|5a. Match por Nombre o Alias| UpdateStock[Incrementa Stock Automáticamente +Qty]
-    SupabaseDB -->|5b. Sin Match Exacto| PendingBox[Inserta Registro con status: 'pending']
+    SupabaseDB -->|5a. Match por Nombre o Alias| UpdateStock["Incrementa Stock Automáticamente +Qty"]
+    SupabaseDB -->|5b. Sin Match Exacto| PendingBox["Inserta Registro con status: 'pending'"]
     
-    PendingBox -->|6. Muestra Alerta Flotante| UserTMV[Usuario en TuMercadoVikingo SPA]
-    UserTMV -->|7. Abre PendingApprovalModal| Decision{Opción del Usuario}
+    PendingBox -->|6. Muestra Alerta Flotante| UserTMV["Usuario en TuMercadoVikingo SPA"]
+    UserTMV -->|7. Abre PendingApprovalModal| Decision{"Opción del Usuario"}
     
-    Decision -->|Vincular a Tile Existente| AddAlias[Actualiza aliases text[] en DB + Incrementa Stock]
-    Decision -->|Crear Nuevo Tile| CreateTile[Inserta Tile con status: 'active']
-    Decision -->|Descartar| DeletePending[Elimina registro pendiente]
+    Decision -->|Vincular a Tile Existente| AddAlias["Actualiza aliases text[] en DB + Incrementa Stock"]
+    Decision -->|Crear Nuevo Tile| CreateTile["Inserta Tile con status: 'active'"]
+    Decision -->|Descartar| DeletePending["Elimina registro pendiente"]
 
-    UserTMV -->|8. Modo Supermercado + Precios| ShoppingCart[Contador en Carrito + Tap-to-Price]
-    ShoppingCart -->|9. Abre CheckoutSaldoModal| Checkout[Cierre de Mercado]
+    UserTMV -->|8. Modo Supermercado + Precios| ShoppingCart["Contador en Carrito + Tap-to-Price"]
+    ShoppingCart -->|9. Abre CheckoutSaldoModal| Checkout["Cierre de Mercado"]
     Checkout -->|10. Actualiza Inventario en Lote| SupabaseDB
-    Checkout -->|11. Registra Gasto Desglosado| SaldoTX[(Supabase DB: transactions)]
+    Checkout -->|11. Registra Gasto Desglosado| SaldoTX[("(Supabase DB: transactions)")]
 ```
 
 ---
