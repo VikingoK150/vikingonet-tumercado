@@ -18,7 +18,10 @@ export function ModalInApp({ isOpen, onClose, title, children, maxWidth = '380px
 
   return createPortal(
     <div 
-      onClick={onClose} // Cierra al hacer clic en el fondo oscuro
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }} // Cierra al hacer clic en el fondo oscuro sin propagar al modal padre
       style={{
         position: 'fixed',
         inset: 0, // top:0, left:0, right:0, bottom:0

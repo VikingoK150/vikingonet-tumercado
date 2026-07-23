@@ -158,6 +158,17 @@ Tipos de Acciones Soportadas en "actions":
 
   const [applying, setApplying] = useState(false);
   const [appliedSuccess, setAppliedSuccess] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  const handleRequestClose = (e) => {
+    if (e) e.stopPropagation();
+    if (aiResponse && aiResponse.actions && aiResponse.actions.length > 0 && !appliedSuccess) {
+      triggerHaptic(30);
+      setShowCloseConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   // Funciones para editar in-situ las acciones detectadas por la IA
   const handleUpdateActionField = (actIdx, field, value) => {
@@ -213,7 +224,7 @@ Tipos de Acciones Soportadas en "actions":
   return createPortal(
     <div 
       className="modal-overlay" 
-      onClick={onClose}
+      onClick={handleRequestClose}
       style={{
         position: 'fixed',
         inset: 0,
@@ -252,7 +263,7 @@ Tipos de Acciones Soportadas en "actions":
             <Sparkles size={20} className="sparkles-icon" color="#2ECC71" />
             <span>Asistente IA Vikingo</span>
           </div>
-          <button className="modal-close-btn" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#777' }}>
+          <button className="modal-close-btn" onClick={handleRequestClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#777' }}>
             <X size={20} />
           </button>
         </div>
@@ -677,6 +688,58 @@ Tipos de Acciones Soportadas en "actions":
             setCatSelectActionIdx(null);
           }}
         />
+      )}
+
+      {/* Modal In-App de Confirmación antes de salir si hay análisis de IA activo */}
+      {showCloseConfirm && (
+        <ModalInApp
+          isOpen={true}
+          onClose={() => setShowCloseConfirm(false)}
+          title="⚠️ ¿Salir sin guardar?"
+          maxWidth="340px"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'center' }}>
+            <p style={{ fontSize: '13px', color: '#555555', margin: 0, lineHeight: '1.4' }}>
+              Tienes movimientos detectados por la IA pendientes de aplicar en TuMercado y SaldoVikingo.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setShowCloseConfirm(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '10px',
+                  border: '1px solid #D1C9BF',
+                  backgroundColor: '#F4F1EA',
+                  color: '#2C2C2C',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Continuar Editando
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowCloseConfirm(false); onClose(); }}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: '#E74C3C',
+                  color: '#FFFFFF',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Sí, Salir
+              </button>
+            </div>
+          </div>
+        </ModalInApp>
       )}
     </div>,
     document.body
