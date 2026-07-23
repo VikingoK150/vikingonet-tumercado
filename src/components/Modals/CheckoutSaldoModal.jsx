@@ -14,10 +14,11 @@ export function CheckoutSaldoModal({
   loading = false
 }) {
   const [registerInSaldo, setRegisterInSaldo] = useState(true);
+  const [commerceConcept, setCommerceConcept] = useState('TuMercado');
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().substring(0, 10));
   const [itemsState, setItemsState] = useState([]);
   const [showDatePickerModal, setShowDatePickerModal] = useState(false);
-  
+
   // Modal de selección de moneda centrado y difuminado por producto
   const [activeItemForCurrencySelect, setActiveItemForCurrencySelect] = useState(null);
 
@@ -27,6 +28,7 @@ export function CheckoutSaldoModal({
 
   useEffect(() => {
     if (isOpen && purchasedItems.length > 0) {
+      setCommerceConcept('TuMercado');
       setItemsState(
         purchasedItems.map(item => ({
           id: item.id,
@@ -113,6 +115,7 @@ export function CheckoutSaldoModal({
     onConfirmCheckout({
       items: itemsState,
       registerInSaldo,
+      commerceConcept: (commerceConcept || '').trim() || 'TuMercado',
       defaultCurrency: 'VES',
       purchaseDate,
       rates,
@@ -322,6 +325,29 @@ export function CheckoutSaldoModal({
             />
             <span>Registrar gasto desglosado en SaldoVikingo</span>
           </label>
+
+          {registerInSaldo && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: '#555555' }}>🏷️ Comercio / Concepto para SaldoVikingo:</label>
+              <input
+                type="text"
+                value={commerceConcept}
+                onChange={e => setCommerceConcept(e.target.value)}
+                placeholder="TuMercado"
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  borderRadius: '8px',
+                  border: '1px solid #D1C9BF',
+                  backgroundColor: '#FFFFFF',
+                  color: '#2C2C2C',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Botón de Confirmación */}

@@ -218,7 +218,7 @@ export default function App() {
   };
 
   // Confirmación Final de Cierre de Mercado (TuMercado -> SaldoVikingo)
-  const handleConfirmCheckout = async ({ items, registerInSaldo, purchaseDate, rates: passedRates, multiCurrencySummary }) => {
+  const handleConfirmCheckout = async ({ items, registerInSaldo, commerceConcept, purchaseDate, rates: passedRates, multiCurrencySummary }) => {
     setCheckoutLoading(true);
     try {
       // 1. Incrementar stock en TuMercado
@@ -255,6 +255,8 @@ export default function App() {
           }
         }
 
+        const conceptName = (commerceConcept || '').trim() || 'TuMercado';
+
         const breakdownItems = items.map(it => ({
           description: `${it.addedQty} ${it.unit} ${it.name}`.trim(),
           amount: parseFloat(it.amount) || 0,
@@ -268,7 +270,7 @@ export default function App() {
 
         const finalDesc = JSON.stringify({
           isBreakdown: true,
-          mainDescription: "Mercado",
+          mainDescription: conceptName,
           items: breakdownItems
         });
 
@@ -287,7 +289,7 @@ export default function App() {
               transaction: {
                 date: purchaseDate ? new Date(purchaseDate).toISOString() : new Date().toISOString(),
                 type: 'expense',
-                mainDescription: "Mercado",
+                mainDescription: conceptName,
                 description: finalDesc,
                 category: 'Alimentos/Automercado',
                 amount_original: mainTotalOriginal,
