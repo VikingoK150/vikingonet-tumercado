@@ -72,8 +72,8 @@ Fecha de hoy: ${todayStr}
 
 ### 🔴 REGLA DE ORO PARA FACTURAS / TICKETS / RECIBOS (FOTOS O TEXTO):
 Si la entrada es la foto o texto de una factura o ticket de caja (ej. HIPERMERCADO FAMOSO, Automercado, Farmacia, etc.):
-1. **Factura o Recibo:** Lee la Razón Social / Nombre del Comercio (ej. "Hipermercado Famoso C.A"), el Monto Total (ej. "TOTAL Bs 688,36") y la fecha.
-2. **Productos, Pesos y Categoría:** Extrae cada producto con su peso/unidad exacto. Asigna estrictamente la categoría correcta:
+1. **Factura o Recibo:** Lee la Razón Social / Nombre del Comercio (ej. "Hipermercado Famoso C.A" o "Inversiones Barcelona Oriente"). El campo "mainDescription" DEBE llevar estrictamente el formato "TuMercado / [Nombre del Comercio]" (por ejemplo: "TuMercado / Inversiones Barcelona Oriente C.A" o "TuMercado / Hipermercado Famoso"). Si no se detecta el nombre del negocio, usa simplemente "TuMercado".
+2. **Productos, Pesos y Categoría:** Extrae cada producto con su peso/unidad exacto. Asigna strictly la categoría correcta:
    - "Agua", "Leche", "Queso", "Jugo" DEBEN ir en "Bebidas y Lácteos".
    - "Harina", "Arroz", "Pasta" DEBEN ir en "Secos y Víveres".
    - "Tomate", "Cebolla", "Papa" DEBEN ir en "Vegetales y Frutas".
@@ -99,7 +99,7 @@ Devuelve UNICAMENTE un objeto JSON válido con la siguiente estructura:
 
 Tipos de Acciones Soportadas en "actions":
 1. Registrar Movimiento Financiero en SaldoVikingo:
-   {"type": "register_saldo_transaction", "mainDescription": "NombreComercio O Mercado", "category": "Alimentos/Automercado", "amount_original": número, "currency_original": "VES"|"USD"|"USDT"|"EUR", "date": "YYYY-MM-DD", "breakdown": [{"description": "Agua Minalba 5LT", "amount": 4462.06}]}
+   {"type": "register_saldo_transaction", "mainDescription": "TuMercado / NombreComercio", "category": "Alimentos/Automercado", "amount_original": número, "currency_original": "VES"|"USD"|"USDT"|"EUR", "date": "YYYY-MM-DD", "breakdown": [{"description": "Agua Minalba 5LT", "amount": 4462.06}]}
 
 2. Crear Producto Nuevo en Despensa:
    {"type": "create", "name": "Nombre Exacto", "quantity": número, "unit": "unid"|"kg"|"L"|"paq", "min_threshold": número, "category": "Categoría Oficial", "emoji": "emoji"}
@@ -147,6 +147,20 @@ Tipos de Acciones Soportadas en "actions":
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.actions && Array.isArray(parsed.actions)) {
+          parsed.actions = parsed.actions.map(act => {
+            if (act.type === 'register_saldo_transaction') {
+              let rawDesc = (act.mainDescription || '').trim();
+              if (!rawDesc || rawDesc.toLowerCase() === 'mercado') {
+                rawDesc = 'TuMercado';
+              } else if (!rawDesc.toLowerCase().startsWith('tumercado')) {
+                rawDesc = `TuMercado / ${rawDesc}`;
+              }
+              return { ...act, mainDescription: rawDesc };
+            }
+            return act;
+          });
+        }
         setAiResponse(parsed);
       } else {
         setAiResponse({ reply: responseText, actions: [] });
