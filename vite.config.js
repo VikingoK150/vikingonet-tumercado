@@ -8,6 +8,13 @@ export default defineConfig({
   base: '/tumercado/',
   server: {
     host: true,
-    port: 5174
+    port: 5174,
+    proxy: {
+      '/.netlify/functions': {
+        target: 'http://localhost:8888',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   }
 })

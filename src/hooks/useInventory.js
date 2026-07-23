@@ -35,7 +35,29 @@ export function useInventory(userId) {
 
   useEffect(() => {
     fetchInventory();
-  }, [fetchInventory]);
+
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`market_inventory_${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'market_inventory',
+          filter: `user_id=eq.${userId}`
+        },
+        () => {
+          fetchInventory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchInventory, userId]);
 
   // Separar en activos y pendientes
   const activeItems = items.filter(i => (i.status || 'active') === 'active');

@@ -15,6 +15,8 @@ import { useHaptic } from './hooks/useHaptic';
 import { normalizeText } from './utils/stringUtils';
 import { fetchExchangeRates, fetchRatesForDate } from './services/exchangeService';
 
+const PROCESS_INPUT_URL = import.meta.env.VITE_SALDO_FUNCTIONS_URL || '/.netlify/functions/process-input';
+
 export default function App() {
   const { triggerHaptic } = useHaptic();
   const [user, setUser] = useState(null);
@@ -273,25 +275,60 @@ export default function App() {
         const amountUsdBcv = parseFloat((mainTotalOriginal / bcvRate).toFixed(2));
         const amountUsdP2p = parseFloat((mainTotalOriginal / usdtRate).toFixed(2));
 
-        const { error: txError } = await supabase
-          .from('transactions')
-          .insert([{
-            user_id: user.id,
-            date: purchaseDate ? new Date(purchaseDate).toISOString() : new Date().toISOString(),
-            type: 'expense',
-            description: finalDesc,
-            category: 'Alimentos/Automercado',
-            amount_original: mainTotalOriginal,
-            currency_original: 'VES',
-            rate_bcv: bcvRate,
-            rate_p2p: usdtRate,
-            amount_usd_bcv: amountUsdBcv,
-            amount_usd_p2p: amountUsdP2p,
-            rate_preference: 'auto'
-          }]);
+        let registeredViaE2EE = false;
+        try {
+          const resp = await fetch(PROCESS_INPUT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'register_direct',
+              userId: user.id,
+              rates: { bcv: bcvRate, usdt: usdtRate },
+              transaction: {
+                date: purchaseDate ? new Date(purchaseDate).toISOString() : new Date().toISOString(),
+                type: 'expense',
+                mainDescription: "Mercado",
+                description: finalDesc,
+                category: 'Alimentos/Automercado',
+                amount_original: mainTotalOriginal,
+                currency_original: 'VES',
+                rate_preference: 'auto',
+                breakdown: breakdownItems
+              }
+            })
+          });
+          if (resp.ok) {
+            const resData = await resp.json();
+            if (resData && resData.success) {
+              registeredViaE2EE = true;
+              console.log("✅ Compra de TuMercado registrada exitosamente vía Netlify E2EE en SaldoVikingo");
+            }
+          }
+        } catch (e2eErr) {
+          console.warn("No se pudo conectar con el endpoint E2EE de SaldoVikingo, realizando inserción directa en Supabase:", e2eErr);
+        }
 
-        if (txError) {
-          console.error("Error registrando gasto en SaldoVikingo:", txError);
+        if (!registeredViaE2EE) {
+          const { error: txError } = await supabase
+            .from('transactions')
+            .insert([{
+              user_id: user.id,
+              date: purchaseDate ? new Date(purchaseDate).toISOString() : new Date().toISOString(),
+              type: 'expense',
+              description: finalDesc,
+              category: 'Alimentos/Automercado',
+              amount_original: mainTotalOriginal,
+              currency_original: 'VES',
+              rate_bcv: bcvRate,
+              rate_p2p: usdtRate,
+              amount_usd_bcv: amountUsdBcv,
+              amount_usd_p2p: amountUsdP2p,
+              rate_preference: 'auto'
+            }]);
+
+          if (txError) {
+            console.error("Error registrando gasto en SaldoVikingo:", txError);
+          }
         }
       }
 
@@ -394,7 +431,7 @@ export default function App() {
           }
           if (!targetUserId) {
             try {
-              const { data: sample } = await supabase.from('inventory_items').select('user_id').limit(1);
+              const { data: sample } = await supabase.from('market_inventory').select('user_id').limit(1);
               if (sample && sample[0]?.user_id) {
                 targetUserId = sample[0].user_id;
               }
@@ -434,7 +471,7 @@ export default function App() {
             let insertedOk = false;
             try {
               // Intentar registrar a través de la función Netlify E2EE-aware de SaldoVikingo
-              const resp = await fetch('/.netlify/functions/process-input', {
+              const resp = await fetch(PROCESS_INPUT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
