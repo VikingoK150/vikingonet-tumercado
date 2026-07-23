@@ -431,27 +431,62 @@ export default function App() {
           const amountUsdP2p = parseFloat((mainTotal / usdtRate).toFixed(2));
 
           if (targetUserId) {
-            const { error: txError } = await supabase
-              .from('transactions')
-              .insert([{
-                user_id: targetUserId,
-                date: act.date ? new Date(act.date).toISOString() : new Date().toISOString(),
-                type: 'expense',
-                description: finalDesc,
-                category: act.category || 'Alimentos/Automercado',
-                amount_original: mainTotal,
-                currency_original: act.currency_original || 'VES',
-                rate_bcv: bcvRate,
-                rate_p2p: usdtRate,
-                amount_usd_bcv: amountUsdBcv,
-                amount_usd_p2p: amountUsdP2p,
-                rate_preference: 'auto'
-              }]);
+            let insertedOk = false;
+            try {
+              // Intentar registrar a través de la función Netlify E2EE-aware de SaldoVikingo
+              const resp = await fetch('/.netlify/functions/process-input', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'register_direct',
+                  userId: targetUserId,
+                  transaction: {
+                    date: act.date ? new Date(act.date).toISOString() : new Date().toISOString(),
+                    type: 'expense',
+                    mainDescription: act.mainDescription || "Mercado",
+                    description: finalDesc,
+                    category: act.category || 'Alimentos/Automercado',
+                    amount_original: mainTotal,
+                    currency_original: act.currency_original || 'VES',
+                    rate_preference: 'auto',
+                    breakdown: breakdownItems
+                  }
+                })
+              });
+              if (resp.ok) {
+                const resData = await resp.json();
+                if (resData.success) {
+                  insertedOk = true;
+                  console.log("✅ Transacción de IA registrada exitosamente vía Netlify E2EE en SaldoVikingo:", targetUserId);
+                }
+              }
+            } catch(err) {
+              console.warn("No se pudo conectar con el endpoint E2EE de Netlify, usando inserción directa Supabase:", err);
+            }
 
-            if (txError) {
-              console.error("Error guardando movimiento de IA en SaldoVikingo:", txError);
-            } else {
-              console.log("✅ Transacción de IA registrada exitosamente en SaldoVikingo para el usuario:", targetUserId);
+            if (!insertedOk) {
+              const { error: txError } = await supabase
+                .from('transactions')
+                .insert([{
+                  user_id: targetUserId,
+                  date: act.date ? new Date(act.date).toISOString() : new Date().toISOString(),
+                  type: 'expense',
+                  description: finalDesc,
+                  category: act.category || 'Alimentos/Automercado',
+                  amount_original: mainTotal.toString(),
+                  currency_original: act.currency_original || 'VES',
+                  rate_bcv: bcvRate,
+                  rate_p2p: usdtRate,
+                  amount_usd_bcv: amountUsdBcv.toString(),
+                  amount_usd_p2p: amountUsdP2p.toString(),
+                  rate_preference: 'auto'
+                }]);
+
+              if (txError) {
+                console.error("Error guardando movimiento de IA en SaldoVikingo:", txError);
+              } else {
+                console.log("✅ Transacción de IA registrada exitosamente en SaldoVikingo (fallback):", targetUserId);
+              }
             }
           } else {
             console.warn("⚠️ No se encontró targetUserId para guardar la transacción en SaldoVikingo");
