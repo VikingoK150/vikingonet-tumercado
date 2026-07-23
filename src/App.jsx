@@ -10,7 +10,7 @@ import { ShareModal } from './components/Modals/ShareModal';
 import { LastPurchaseModal } from './components/Modals/LastPurchaseModal';
 import { CheckoutSaldoModal } from './components/Modals/CheckoutSaldoModal';
 import { ItemPriceTapModal } from './components/Modals/ItemPriceTapModal';
-import { ShoppingBasket, Bell, LogIn, Loader2, Share2, ShoppingCart, ClipboardList, Search, X } from 'lucide-react';
+import { ShoppingBasket, Bell, LogIn, LogOut, Loader2, Share2, ShoppingCart, ClipboardList, Search, X } from 'lucide-react';
 import { useHaptic } from './hooks/useHaptic';
 import { normalizeText } from './utils/stringUtils';
 
@@ -98,6 +98,17 @@ export default function App() {
       setUser(data.user);
     } catch (err) {
       setAuthError(err.message || 'Error iniciando sesión');
+    }
+  };
+
+  // Cerrar sesión de Supabase
+  const handleLogout = async () => {
+    triggerHaptic(40);
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err);
     }
   };
 
@@ -497,6 +508,18 @@ export default function App() {
               <span>{pendingItems.length} por revisar</span>
             </button>
           )}
+
+          {/* Botón de Cerrar Sesión */}
+          <button 
+            type="button"
+            className="header-badge-btn" 
+            onClick={handleLogout}
+            style={{ backgroundColor: '#FDF2F2', color: '#E74C3C', borderColor: 'rgba(231, 76, 60, 0.3)', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}
+            title="Cerrar Sesión"
+          >
+            <LogOut size={13} />
+            <span>Salir</span>
+          </button>
         </div>
       </header>
 
