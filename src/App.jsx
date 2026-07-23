@@ -458,6 +458,8 @@ export default function App() {
             currency: act.currency_original || 'VES'
           }));
 
+          const mainTotal = parseFloat(act.amount_original) || breakdownItems.reduce((acc, it) => acc + it.amount, 0);
+
           let conceptName = (act.mainDescription || '').trim();
           if (!conceptName || conceptName.toLowerCase() === 'mercado') {
             conceptName = 'TuMercado';

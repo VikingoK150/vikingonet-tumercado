@@ -123,7 +123,7 @@ Tipos de Acciones Soportadas en "actions":
         });
       }
 
-      const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-3.1-flash-lite"];
+      const modelsToTry = ["gemini-2.5-flash", "gemini-3.1-flash-lite"];
       let responseText = null;
       let lastErr = null;
 
