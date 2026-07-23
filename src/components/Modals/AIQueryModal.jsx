@@ -187,8 +187,52 @@ Tipos de Acciones Soportadas en "actions":
       const targetAct = { ...newActions[actIdx] };
       const newBreakdown = [...(targetAct.breakdown || [])];
       newBreakdown[bIdx] = { ...newBreakdown[bIdx], [field]: value };
+
+      // Si se editó el monto de un ítem, recalcular el total acumulado de la transacción
+      if (field === 'amount') {
+        const sumTotal = newBreakdown.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        targetAct.amount_original = parseFloat(sumTotal.toFixed(2));
+      }
+
       targetAct.breakdown = newBreakdown;
       newActions[actIdx] = targetAct;
+      return { ...prev, actions: newActions };
+    });
+  };
+
+  const handleRemoveBreakdownItem = (actIdx, bIdx) => {
+    triggerHaptic(20);
+    setAiResponse(prev => {
+      if (!prev || !prev.actions) return prev;
+      const newActions = [...prev.actions];
+      const targetAct = { ...newActions[actIdx] };
+      if (!targetAct.breakdown || !targetAct.breakdown[bIdx]) return prev;
+
+      const itemToRemove = targetAct.breakdown[bIdx];
+      const itemDesc = (itemToRemove.description || '').toLowerCase().trim();
+
+      // 1. Filtrar desglose y recalcular total
+      const newBreakdown = targetAct.breakdown.filter((_, idx) => idx !== bIdx);
+      const sumTotal = newBreakdown.reduce((acc, it) => acc + (parseFloat(it.amount) || 0), 0);
+      targetAct.breakdown = newBreakdown;
+      targetAct.amount_original = parseFloat(sumTotal.toFixed(2));
+      newActions[actIdx] = targetAct;
+
+      // 2. Sincronización bidireccional: si este ítem corresponde a un producto en TuMercado, eliminar esa acción también
+      if (itemDesc) {
+        const cleanedDesc = itemDesc.replace(/[\d.,x\s]/g, '').trim();
+        let finalActions = newActions.filter(act => {
+          if (act.type === 'create' || act.type === 'add' || act.type === 'update_stock') {
+            const prodName = (act.name || act.target_name || '').toLowerCase().trim();
+            if (prodName && (prodName.includes(cleanedDesc) || cleanedDesc.includes(prodName))) {
+              return false; // Eliminar también de TuMercado
+            }
+          }
+          return true;
+        });
+        return { ...prev, actions: finalActions };
+      }
+
       return { ...prev, actions: newActions };
     });
   };
@@ -197,7 +241,36 @@ Tipos de Acciones Soportadas en "actions":
     triggerHaptic(20);
     setAiResponse(prev => {
       if (!prev || !prev.actions) return prev;
-      const newActions = prev.actions.filter((_, idx) => idx !== actIdx);
+      const actionToRemove = prev.actions[actIdx];
+      let newActions = [...prev.actions];
+
+      // Sincronización bidireccional: si se está eliminando un producto de TuMercado (ej: Cambur)
+      if (actionToRemove && (actionToRemove.type === 'create' || actionToRemove.type === 'add' || actionToRemove.type === 'update_stock')) {
+        const prodName = (actionToRemove.name || actionToRemove.target_name || '').toLowerCase().trim();
+
+        // Buscar si hay una acción de SaldoVikingo y eliminarlo de su breakdown y recalcular el total
+        newActions = newActions.map(act => {
+          if (act.type === 'register_saldo_transaction' && act.breakdown && Array.isArray(act.breakdown)) {
+            const updatedBreakdown = act.breakdown.filter(item => {
+              const itemDesc = (item.description || '').toLowerCase();
+              const cleanedProd = prodName.replace(/[\d.,x\s]/g, '');
+              const isMatch = prodName && (itemDesc.includes(prodName) || (cleanedProd && itemDesc.includes(cleanedProd)));
+              return !isMatch; // Eliminar del desglose de SaldoVikingo
+            });
+
+            const newTotal = updatedBreakdown.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+            return {
+              ...act,
+              amount_original: parseFloat(newTotal.toFixed(2)),
+              breakdown: updatedBreakdown
+            };
+          }
+          return act;
+        });
+      }
+
+      // Eliminar la acción elegida
+      newActions = newActions.filter((_, idx) => idx !== actIdx);
       return { ...prev, actions: newActions };
     });
   };
@@ -470,7 +543,7 @@ Tipos de Acciones Soportadas en "actions":
                             {/* Desglose de Items */}
                             {act.breakdown && act.breakdown.length > 0 && (
                               <div style={{ marginTop: '6px', paddingTop: '4px', borderTop: '1px dashed #E0DBCF' }}>
-                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#777' }}>Desglose de Ítems:</span>
+                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#777' }}>Desglose de Ítems (Sincronizado):</span>
                                 {act.breakdown.map((item, bIdx) => (
                                   <div key={bIdx} style={{ display: 'flex', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
                                     <input
@@ -486,6 +559,14 @@ Tipos de Acciones Soportadas en "actions":
                                       onChange={e => handleUpdateBreakdownItem(actIdx, bIdx, 'amount', parseFloat(e.target.value) || 0)}
                                       style={{ width: '70px', padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #D1C9BF', textAlign: 'right' }}
                                     />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveBreakdownItem(actIdx, bIdx)}
+                                      style={{ background: 'none', border: 'none', color: '#E74C3C', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                      title="Quitar este ítem de la factura y de la despensa"
+                                    >
+                                      <X size={12} />
+                                    </button>
                                   </div>
                                 ))}
                               </div>
