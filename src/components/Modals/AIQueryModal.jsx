@@ -34,23 +34,47 @@ export function AIQueryModal({ activeItems = [], onProcessAIResult, onClose }) {
       if (!apiKey) throw new Error("Llave de API de Gemini no configurada.");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
       const currentInventoryText = activeItems.map(i => 
         `ID: "${i.id}" | Nombre: "${i.name}" | Cantidad Actual: ${i.quantity} ${i.unit} | Mínimo Alerta: ${i.min_threshold} | Categoría: ${i.category} | Emoji: ${i.emoji}`
       ).join('\n');
 
       const existingCategories = Array.from(new Set(activeItems.map(i => i.category || 'General')));
+      const todayStr = new Date().toISOString().substring(0, 10);
 
       const systemInstruction = `
-Eres el Asistente Inteligente de TuMercadoVikingo, el gestor de despensa personal.
-Tu objetivo es procesar órdenes, consultas, recategorizaciones y modificaciones masivas sobre el inventario actual.
+Eres el Asistente Inteligente Vikingo de TuMercadoVikingo y SaldoVikingo.
+Tu objetivo es analizar entradas del usuario (texto en lenguaje natural, notas de voz o fotos de recibos/facturas/tickets de supermercado o listas de compras) y realizar las acciones correspondientes tanto en la despensa (TuMercadoVikingo) como en la contabilidad financiera (SaldoVikingo).
 
 Inventario Actual del Usuario:
 ${currentInventoryText || 'No hay productos en el inventario.'}
 
 Categorías actualmente en uso en la despensa:
 ${existingCategories.join(', ') || 'Alimentos, Limpieza, Bebidas, Otros'}
+
+Fecha de hoy: ${todayStr}
+
+### 🟢 Normalización Inteligente de Alimentos y Pesos:
+- Transforma automáticamente gramos a kilos: 650g -> 0.65 kg, 500g / medio kilo -> 0.5 kg, 250g -> 0.25 kg, 800g -> 0.8 kg.
+- Asigna unidades estándar: "kg", "unid", "L", "paq".
+- Selecciona el emoji más adecuado para cada producto (ej. Cebolla 🧅, Tomate 🍅, Pera 🍐, Manzana 🍎, Papa 🥔, Carne 🥩, Pollo 🍗, Queso 🧀, Leche 🥛, Pan/Harina 🍞, Arroz 🍚).
+
+### 🔴 REGISTRAR COMPRA / MOVIMIENTO EN SALDOVIKINGO:
+Si el usuario envía la FOTO DE UNA FACTURA/TICKET DE COMPRA o un MENSAJE DE TEXTO/AUDIO indicando compras realizadas (ej. "Compré 650g de cebolla por 35 Bs y 2kg de tomate por 80 Bs", "Ayer hice mercado de 45$"):
+1. DEBES generar una acción "type": "register_saldo_transaction":
+   {
+     "type": "register_saldo_transaction",
+     "mainDescription": "Mercado",
+     "category": "Alimentos/Automercado",
+     "amount_original": 115,
+     "currency_original": "VES",
+     "date": "${todayStr}",
+     "breakdown": [
+       { "description": "0.65 kg Cebolla", "amount": 35 },
+       { "description": "2 kg Tomate", "amount": 80 }
+     ]
+   }
+2. Y DEBES incluir las acciones de inventario correspondientes ("update_stock" para sumar al stock existente o "create" para productos nuevos en TuMercadoVikingo).
 
 Reglas Estrictas de Respuesta en JSON:
 Devuelve UNICAMENTE un objeto JSON válido con la siguiente estructura:
@@ -65,29 +89,26 @@ Tipos de Acciones Soportadas en "actions":
 1. Crear Producto Nuevo:
    {"type": "create", "name": "Nombre", "quantity": número, "unit": "unid"|"kg"|"L"|"paq", "min_threshold": número, "category": "Categoría", "emoji": "emoji"}
 
-2. Organizar / Recategorizar / Modificar Atributos (Nombre, Categoría, Unidad, Emoji):
-   Si el usuario dice "organiza mis productos por categorías" o "recategoriza":
-   Genera acciones {"type": "update_item", "target_id": "ID_DEL_ITEM", "fields": {"category": "NombreCategoría", "emoji": "emoji"}} para cada ítem.
+2. Registrar Movimiento Financiero en SaldoVikingo:
+   {"type": "register_saldo_transaction", "mainDescription": "Mercado", "category": "Alimentos/Automercado", "amount_original": número, "currency_original": "VES"|"USD"|"USDT"|"EUR", "date": "YYYY-MM-DD", "breakdown": [{"description": "0.65 kg Cebolla", "amount": 35}]}
 
-3. Cambiar Mínimo de Alerta (en TODOS los productos o en uno específico):
-   Si el usuario dice "ponle 0 de mínimo a todos" o "que la alerta sea 0 para todo":
+3. Organizar / Recategorizar / Modificar Atributos (Nombre, Categoría, Unidad, Emoji):
+   {"type": "update_item", "target_id": "ID_DEL_ITEM", "fields": {"category": "NombreCategoría", "emoji": "emoji"}}
+
+4. Cambiar Mínimo de Alerta (en TODOS los productos o en uno específico):
    {"type": "update_threshold", "target_all": true, "min_threshold": 0}
-   Si es para un solo producto:
-   {"type": "update_threshold", "target_id": "ID_DEL_ITEM", "min_threshold": número}
+   o {"type": "update_threshold", "target_id": "ID_DEL_ITEM", "min_threshold": número}
 
-4. Ajustar Stock Actual (Fijar valor exacto o sumar/restar):
-   {"type": "update_stock", "target_id": "ID_DEL_ITEM", "mode": "set", "quantity": número}
-   o {"type": "update_stock", "target_id": "ID_DEL_ITEM", "mode": "add", "quantity": número}
+5. Ajustar Stock Actual (Fijar valor exacto o sumar/restar):
+   {"type": "update_stock", "target_id": "ID_DEL_ITEM", "target_name": "Nombre", "mode": "set"|"add", "quantity": número}
 
-5. Eliminar Producto:
-   {"type": "delete", "target_id": "ID_DEL_ITEM"}
+6. Eliminar Producto:
+   {"type": "delete", "target_id": "ID_DEL_ITEM", "target_name": "Nombre"}
 
 Si el usuario solo hace una pregunta ("¿Qué me falta?", "¿Tengo leche?"), la lista "actions" estará vacía [] y responderás en "reply".
 
 CRÍTICO — FILTRADO DE TICKETS / FACTURAS DE COMPRA:
 Si el usuario envía la foto de una factura o una lista con compras variadas, DEBES EXTRAER E INCLUIR ÚNICAMENTE los ítems que pertenezcan a la despensa y al supermercado (Alimentos, Víveres, Carnes, Pescados, Lácteos, Vegetales, Frutas, Bebidas, Dulces/Snacks, Limpieza e Higiene del Hogar).
-
-IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercado o despensa (tales como herramientas de ferretería, ropa, repuestos de autos, electrodomésticos, tecnología, gasolina, o servicios).
 `;
 
       const contents = [];
@@ -96,17 +117,35 @@ IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercad
 
       if (selectedImage) {
         const base64Data = selectedImage.split(',')[1];
+        const mimeType = selectedImage.match(/data:(.*?);/)?.[1] || "image/jpeg";
         contents.push({
           inlineData: {
             data: base64Data,
-            mimeType: "image/jpeg"
+            mimeType: mimeType
           }
         });
       }
 
-      const result = await model.generateContent(contents);
-      const responseText = result.response.text();
-      
+      const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-3.1-flash-lite"];
+      let responseText = null;
+      let lastErr = null;
+
+      for (const modelName of modelsToTry) {
+        try {
+          const model = genAI.getGenerativeModel({ model: modelName });
+          const result = await model.generateContent(contents);
+          responseText = result.response.text();
+          if (responseText) break;
+        } catch (e) {
+          lastErr = e;
+          console.warn(`Fallback modelo ${modelName} falló:`, e);
+        }
+      }
+
+      if (!responseText) {
+        throw lastErr || new Error("No se pudo obtener respuesta del modelo de IA.");
+      }
+
       // Extraer bloque JSON
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -140,7 +179,7 @@ IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercad
         </div>
 
         <p className="ai-modal-desc">
-          Procesa modificaciones masivas (ej. "pon 0 de mínimo a todo"), analiza tickets de compra o consulta tu despensa.
+          Escanea tu factura, ticket o describe tu compra en texto/audio (ej: "Compré 650g de cebolla por 35 Bs") para registrarla en SaldoVikingo y actualizar TuMercado.
         </p>
 
         {/* Input Text / Dictado */}
@@ -148,7 +187,7 @@ IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercad
           <textarea
             className="form-textarea"
             rows={3}
-            placeholder="Ej: 'A todas haz que el mínimo de alerta sea 0', o 'Añadí 2 kg de carne'"
+            placeholder="Ej: 'Compré 650g de cebolla por 35 Bs y 2kg de papa por 80 Bs en el mercado'"
             value={promptText}
             onChange={e => setPromptText(e.target.value)}
           />
@@ -158,7 +197,7 @@ IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercad
         <div className="ai-file-row">
           <label className="btn-file-label">
             <Camera size={16} />
-            <span>Escanear Ticket/Foto</span>
+            <span>Escanear Factura / Ticket</span>
             <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
           </label>
           {selectedImage && <span className="file-status">📷 Imagen cargada</span>}
@@ -171,7 +210,7 @@ IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercad
           disabled={loading || (!promptText.trim() && !selectedImage)}
         >
           {loading ? <Loader2 size={18} className="spinner" /> : <Send size={18} />}
-          <span>{loading ? 'Ejecutando Acciones...' : 'Ejecutar Orden con IA'}</span>
+          <span>{loading ? 'Procesando con IA...' : 'Ejecutar Orden con IA'}</span>
         </button>
 
         {/* Respuesta de la IA */}
@@ -186,11 +225,14 @@ IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercad
             {aiResponse.actions && aiResponse.actions.length > 0 && (
               <div className="ai-actions-preview" style={{ backgroundColor: '#E8F8F0', padding: '8px 12px', borderRadius: '10px', border: '1px solid #2ECC71' }}>
                 <h5 style={{ fontSize: '11px', fontWeight: '700', color: '#27AE60', marginBottom: '4px' }}>
-                  ⚡ Acciones Ejecutadas en la Base de Datos:
+                  ⚡ Acciones Ejecutadas:
                 </h5>
                 <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11px', color: '#2C3E50' }}>
                   {aiResponse.actions.map((act, idx) => (
                     <li key={idx}>
+                      {act.type === 'register_saldo_transaction' && (
+                        <span>💳 Registrada compra desglosada en <strong>SaldoVikingo</strong> ({act.amount_original} {act.currency_original || 'VES'})</span>
+                      )}
                       {act.type === 'update_threshold' && (
                         <span>🔄 Mínimo de alerta cambiado a <strong>{act.min_threshold}</strong> {act.target_all ? 'en TODOS los productos' : ''}</span>
                       )}
@@ -198,7 +240,7 @@ IGNORA Y OMITE COMPLETAMENTE de "actions" todo ítem que NO corresponda a mercad
                         <span>➕ Creado {act.emoji} <strong>{act.name}</strong> ({act.quantity} {act.unit})</span>
                       )}
                       {act.type === 'update_stock' && (
-                        <span>✏️ Stock de <strong>{act.target_id || act.target_name}</strong> actualizado a {act.quantity}</span>
+                        <span>✏️ Stock de <strong>{act.target_id || act.target_name}</strong> {act.mode === 'add' ? `+${act.quantity}` : `actualizado a ${act.quantity}`}</span>
                       )}
                       {act.type === 'update_item' && (
                         <span>✏️ Actualizados campos en {act.target_all ? 'todos los productos' : 'producto'}</span>

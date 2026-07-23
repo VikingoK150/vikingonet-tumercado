@@ -13,6 +13,7 @@ import { ItemPriceTapModal } from './components/Modals/ItemPriceTapModal';
 import { ShoppingBasket, Bell, LogIn, LogOut, Loader2, Share2, ShoppingCart, ClipboardList, Search, X } from 'lucide-react';
 import { useHaptic } from './hooks/useHaptic';
 import { normalizeText } from './utils/stringUtils';
+import { fetchExchangeRates, fetchRatesForDate } from './services/exchangeService';
 
 export default function App() {
   const { triggerHaptic } = useHaptic();
@@ -157,8 +158,8 @@ export default function App() {
     setShoppingQtyMap(prev => {
       const current = prev[itemId] || 0;
       const next = Math.max(0, current + delta);
-      // Redondear decimales para kg/L
-      const rounded = Math.round(next * 100) / 100;
+      // Redondear decimales para kg/L (hasta 3 decimales para gramos como 0.650)
+      const rounded = Math.round(next * 1000) / 1000;
       return {
         ...prev,
         [itemId]: rounded
@@ -199,12 +200,19 @@ export default function App() {
     setShowCheckoutSaldoModal(true);
   };
 
-  // Save price from ItemPriceTapModal
-  const handleSaveTapPrice = (id, { amount, currency, priceMode }) => {
+  // Save price and updated quantity from ItemPriceTapModal
+  const handleSaveTapPrice = (id, { amount, currency, priceMode, addedQty }) => {
     setItemPriceMap(prev => ({
       ...prev,
       [id]: { amount, currency, priceMode }
     }));
+    if (addedQty !== undefined && addedQty !== null && parseFloat(addedQty) > 0) {
+      const roundedQty = Math.round(parseFloat(addedQty) * 1000) / 1000;
+      setShoppingQtyMap(prev => ({
+        ...prev,
+        [id]: roundedQty
+      }));
+    }
   };
 
   // Confirmación Final de Cierre de Mercado (TuMercado -> SaldoVikingo)
@@ -375,6 +383,80 @@ export default function App() {
             const item = activeItems.find(i => (i.name || '').toLowerCase().trim() === act.target_name.toLowerCase().trim());
             if (item) await editItem(item.id, act.fields);
           }
+        }
+        else if (act.type === 'register_saldo_transaction') {
+          let bcvRate = 60.0;
+          let usdtRate = 65.0;
+          try {
+            const fetched = await fetchRatesForDate(act.date || new Date().toISOString().substring(0, 10));
+            if (fetched) {
+              bcvRate = fetched.bcv || 60.0;
+              usdtRate = fetched.usdt || 65.0;
+            }
+          } catch(e) {
+            console.warn("Error buscando tasas para transacción de IA:", e);
+          }
+
+          const breakdownItems = (act.breakdown || []).map(it => ({
+            description: (it.description || it.name || '').trim(),
+            amount: parseFloat(it.amount || 0),
+            currency: act.currency_original || 'VES'
+          }));
+
+          const mainTotal = parseFloat(act.amount_original) || breakdownItems.reduce((acc, it) => acc + it.amount, 0);
+
+          const finalDesc = JSON.stringify({
+            isBreakdown: true,
+            mainDescription: act.mainDescription || "Mercado",
+            items: breakdownItems
+          });
+
+          const amountUsdBcv = parseFloat((mainTotal / bcvRate).toFixed(2));
+          const amountUsdP2p = parseFloat((mainTotal / usdtRate).toFixed(2));
+
+          if (user?.id) {
+            const { error: txError } = await supabase
+              .from('transactions')
+              .insert([{
+                user_id: user.id,
+                date: act.date ? new Date(act.date).toISOString() : new Date().toISOString(),
+                type: 'expense',
+                description: finalDesc,
+                category: act.category || 'Alimentos/Automercado',
+                amount_original: mainTotal,
+                currency_original: act.currency_original || 'VES',
+                rate_bcv: bcvRate,
+                rate_p2p: usdtRate,
+                amount_usd_bcv: amountUsdBcv,
+                amount_usd_p2p: amountUsdP2p,
+                rate_preference: 'auto'
+              }]);
+
+            if (txError) {
+              console.error("Error guardando movimiento de IA en SaldoVikingo:", txError);
+            }
+          }
+
+          // Guardar reporte de última compra en localStorage y estado
+          const newPurchaseData = {
+            date: act.date ? new Date(act.date).toISOString() : new Date().toISOString(),
+            items: breakdownItems.map((it, idx) => ({
+              id: `ai_${idx}`,
+              name: it.description,
+              emoji: '🛒',
+              unit: 'unid',
+              category: 'Alimentos',
+              addedQty: 1,
+              amount: it.amount,
+              currency: act.currency_original || 'VES'
+            }))
+          };
+          try {
+            localStorage.setItem('tu_mercado_last_purchase', JSON.stringify(newPurchaseData));
+          } catch (e) {
+            console.warn("Error guardando última compra de IA en localStorage:", e);
+          }
+          setLastPurchaseData(newPurchaseData);
         }
         else if (act.type === 'delete') {
           let targetId = act.target_id;

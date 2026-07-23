@@ -114,6 +114,11 @@ export function ProductTile({
             {priceDisplay}
           </button>
           <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              triggerHaptic(20);
+              if (onOpenPriceTapModal) onOpenPriceTapModal(item);
+            }}
             style={{
               backgroundColor: '#2ECC71',
               color: '#FFFFFF',
@@ -124,11 +129,13 @@ export function ProductTile({
               boxShadow: '0 2px 6px rgba(46, 204, 113, 0.4)',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '4px',
+              cursor: 'pointer'
             }}
+            title="Toca para ajustar cantidad o precio"
           >
             <Check size={13} strokeWidth={3} />
-            <span>+{shoppingCartQty} {item.unit || 'unid'}</span>
+            <span>+{typeof shoppingCartQty === 'number' ? parseFloat(shoppingCartQty.toFixed(3)) : shoppingCartQty} {item.unit || 'unid'}</span>
           </div>
         </div>
       )}
