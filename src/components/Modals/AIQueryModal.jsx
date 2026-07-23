@@ -224,16 +224,19 @@ Tipos de Acciones Soportadas en "actions":
       // 2. Sincronización bidireccional: si este ítem corresponde a un producto en TuMercado, eliminar esa acción también
       if (itemDesc) {
         const cleanedDesc = itemDesc.replace(/[\d.,x\s]/g, '').trim();
-        let finalActions = newActions.filter(act => {
-          if (act.type === 'create' || act.type === 'add' || act.type === 'update_stock') {
-            const prodName = (act.name || act.target_name || '').toLowerCase().trim();
-            if (prodName && (prodName.includes(cleanedDesc) || cleanedDesc.includes(prodName))) {
-              return false; // Eliminar también de TuMercado
+        if (cleanedDesc.length >= 2) {
+          let finalActions = newActions.filter(act => {
+            if (act.type === 'create' || act.type === 'add' || act.type === 'update_stock') {
+              const prodName = (act.name || act.target_name || '').toLowerCase().trim();
+              const cleanedProd = prodName.replace(/[\d.,x\s]/g, '').trim();
+              if (prodName && cleanedProd.length >= 2 && (prodName.includes(cleanedDesc) || cleanedDesc.includes(cleanedProd))) {
+                return false; // Eliminar también de TuMercado
+              }
             }
-          }
-          return true;
-        });
-        return { ...prev, actions: finalActions };
+            return true;
+          });
+          return { ...prev, actions: finalActions };
+        }
       }
 
       return { ...prev, actions: newActions };
@@ -250,26 +253,30 @@ Tipos de Acciones Soportadas en "actions":
       // Sincronización bidireccional: si se está eliminando un producto de TuMercado (ej: Cambur)
       if (actionToRemove && (actionToRemove.type === 'create' || actionToRemove.type === 'add' || actionToRemove.type === 'update_stock')) {
         const prodName = (actionToRemove.name || actionToRemove.target_name || '').toLowerCase().trim();
+        const cleanedProd = prodName.replace(/[\d.,x\s]/g, '').trim();
 
-        // Buscar si hay una acción de SaldoVikingo y eliminarlo de su breakdown y recalcular el total
-        newActions = newActions.map(act => {
-          if (act.type === 'register_saldo_transaction' && act.breakdown && Array.isArray(act.breakdown)) {
-            const updatedBreakdown = act.breakdown.filter(item => {
-              const itemDesc = (item.description || '').toLowerCase();
-              const cleanedProd = prodName.replace(/[\d.,x\s]/g, '');
-              const isMatch = prodName && (itemDesc.includes(prodName) || (cleanedProd && itemDesc.includes(cleanedProd)));
-              return !isMatch; // Eliminar del desglose de SaldoVikingo
-            });
+        if (prodName && cleanedProd.length >= 2) {
+          // Buscar si hay una acción de SaldoVikingo y eliminarlo de su breakdown y recalcular el total
+          newActions = newActions.map(act => {
+            if (act.type === 'register_saldo_transaction' && act.breakdown && Array.isArray(act.breakdown)) {
+              const updatedBreakdown = act.breakdown.filter(item => {
+                const itemDesc = (item.description || '').toLowerCase();
+                const cleanedItem = itemDesc.replace(/[\d.,x\s]/g, '').trim();
+                if (!cleanedItem || cleanedItem.length < 2) return true;
+                const isMatch = itemDesc.includes(cleanedProd) || cleanedProd.includes(cleanedItem);
+                return !isMatch; // Eliminar del desglose de SaldoVikingo
+              });
 
-            const newTotal = updatedBreakdown.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-            return {
-              ...act,
-              amount_original: parseFloat(newTotal.toFixed(2)),
-              breakdown: updatedBreakdown
-            };
-          }
-          return act;
-        });
+              const newTotal = updatedBreakdown.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+              return {
+                ...act,
+                amount_original: parseFloat(newTotal.toFixed(2)),
+                breakdown: updatedBreakdown
+              };
+            }
+            return act;
+          });
+        }
       }
 
       // Eliminar la acción elegida
@@ -541,6 +548,36 @@ Tipos de Acciones Soportadas en "actions":
                                   style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
                                 />
                               </div>
+                            </div>
+
+                            {/* Selector de Categoría Contable en SaldoVikingo */}
+                            <div style={{ marginTop: '6px' }}>
+                              <label style={{ fontSize: '10px', color: '#555', fontWeight: '700', marginBottom: '2px', display: 'block' }}>Categoría Contable:</label>
+                              <button
+                                type="button"
+                                onClick={() => { triggerHaptic(20); setCatSelectActionIdx(actIdx); }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  width: '100%',
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1.5px solid #2980B9',
+                                  backgroundColor: '#FFFFFF',
+                                  color: '#2C2C2C',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>🏷️</span>
+                                  <span>{act.category || 'Alimentos/Automercado'}</span>
+                                </div>
+                                <ChevronDown size={14} color="#777777" />
+                              </button>
                             </div>
 
                             {/* Desglose de Items */}
@@ -850,12 +887,23 @@ Tipos de Acciones Soportadas en "actions":
         <CustomSelectModal
           isOpen={true}
           onClose={() => setCatSelectActionIdx(null)}
-          title="Seleccionar Categoría Oficial"
-          options={OFFICIAL_MARKET_CATEGORIES.map(c => ({
-            value: c.id,
-            label: c.name,
-            icon: c.icon
-          }))}
+          title={aiResponse.actions[catSelectActionIdx].type === 'register_saldo_transaction' ? "Categoría Contable (SaldoVikingo)" : "Categoría Oficial (TuMercado)"}
+          options={
+            aiResponse.actions[catSelectActionIdx].type === 'register_saldo_transaction'
+              ? [
+                  { value: 'Alimentos/Automercado', label: 'Alimentos/Automercado', icon: '🛒' },
+                  { value: 'Servicios (Cantv/Corpoelec/Internet)', label: 'Servicios (Luz/Internet/Agua)', icon: '⚡' },
+                  { value: 'Transporte/Gasolina', label: 'Transporte/Gasolina', icon: '🚗' },
+                  { value: 'Delivery/Restaurantes', label: 'Delivery/Restaurantes', icon: '🍕' },
+                  { value: 'Salud/Farmacia', label: 'Salud/Farmacia', icon: '💊' },
+                  { value: 'Otros', label: 'Otros Gastos', icon: '🏷️' }
+                ]
+              : OFFICIAL_MARKET_CATEGORIES.map(c => ({
+                  value: c.id,
+                  label: c.name,
+                  icon: c.icon
+                }))
+          }
           value={aiResponse.actions[catSelectActionIdx].category || 'Otros'}
           onChange={(selectedCat) => {
             handleUpdateActionField(catSelectActionIdx, 'category', selectedCat);
