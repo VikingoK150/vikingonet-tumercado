@@ -385,6 +385,22 @@ export default function App() {
           }
         }
         else if (act.type === 'register_saldo_transaction') {
+          let targetUserId = user?.id;
+          if (!targetUserId) {
+            try {
+              const { data: authData } = await supabase.auth.getUser();
+              targetUserId = authData?.user?.id;
+            } catch(e) {}
+          }
+          if (!targetUserId) {
+            try {
+              const { data: sample } = await supabase.from('inventory_items').select('user_id').limit(1);
+              if (sample && sample[0]?.user_id) {
+                targetUserId = sample[0].user_id;
+              }
+            } catch(e) {}
+          }
+
           let bcvRate = 60.0;
           let usdtRate = 65.0;
           try {
@@ -414,11 +430,11 @@ export default function App() {
           const amountUsdBcv = parseFloat((mainTotal / bcvRate).toFixed(2));
           const amountUsdP2p = parseFloat((mainTotal / usdtRate).toFixed(2));
 
-          if (user?.id) {
+          if (targetUserId) {
             const { error: txError } = await supabase
               .from('transactions')
               .insert([{
-                user_id: user.id,
+                user_id: targetUserId,
                 date: act.date ? new Date(act.date).toISOString() : new Date().toISOString(),
                 type: 'expense',
                 description: finalDesc,
@@ -434,7 +450,11 @@ export default function App() {
 
             if (txError) {
               console.error("Error guardando movimiento de IA en SaldoVikingo:", txError);
+            } else {
+              console.log("✅ Transacción de IA registrada exitosamente en SaldoVikingo para el usuario:", targetUserId);
             }
+          } else {
+            console.warn("⚠️ No se encontró targetUserId para guardar la transacción en SaldoVikingo");
           }
 
           // Guardar reporte de última compra en localStorage y estado

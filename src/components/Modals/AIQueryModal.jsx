@@ -16,9 +16,10 @@ export function AIQueryModal({ activeItems = [], onProcessAIResult, onClose }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedFileName, setSelectedFileName] = useState('');
 
-  // Modales in-app de previsualización de imagen y selección de categoría
+  // Modales in-app de previsualización de imagen, selección de categoría y selección de tile a actualizar
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [catSelectActionIdx, setCatSelectActionIdx] = useState(null);
+  const [tileSelectActionIdx, setTileSelectActionIdx] = useState(null);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -615,8 +616,7 @@ Tipos de Acciones Soportadas en "actions":
                                 onClick={() => {
                                   triggerHaptic(20);
                                   handleUpdateActionField(actIdx, 'type', 'update_stock');
-                                  const curName = act.target_name || act.name || 'Tomate';
-                                  handleUpdateActionField(actIdx, 'target_name', curName);
+                                  setTileSelectActionIdx(actIdx);
                                 }}
                                 style={{
                                   flex: 1,
@@ -635,9 +635,47 @@ Tipos de Acciones Soportadas en "actions":
                               </button>
                             </div>
 
+                            {/* Si está en modo update_stock, mostrar botón para elegir Tile Existente */}
+                            {act.type === 'update_stock' && (
+                              <div style={{ marginBottom: '6px' }}>
+                                <label style={{ fontSize: '10px', color: '#555', fontWeight: '700', marginBottom: '2px', display: 'block' }}>Tile Existente Seleccionado:</label>
+                                <button
+                                  type="button"
+                                  onClick={() => { triggerHaptic(20); setTileSelectActionIdx(actIdx); }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    width: '100%',
+                                    padding: '7px 10px',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid #2980B9',
+                                    backgroundColor: '#FFFFFF',
+                                    color: '#2C2C2C',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    boxSizing: 'border-box'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>
+                                      {activeItems.find(i => i.id === act.target_id || (i.name || '').toLowerCase() === (act.target_name || '').toLowerCase())?.emoji || '🛒'}
+                                    </span>
+                                    <span>
+                                      {act.target_name ? `Sumar a: "${act.target_name}"` : 'Toca para elegir Tile de la despensa...'}
+                                    </span>
+                                  </div>
+                                  <ChevronDown size={14} color="#777777" />
+                                </button>
+                              </div>
+                            )}
+
                             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '6px', marginBottom: '6px' }}>
                               <div>
-                                <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Nombre Producto:</label>
+                                <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>
+                                  {act.type === 'update_stock' ? 'Nombre Tile:' : 'Nombre Nuevo Producto:'}
+                                </label>
                                 <input
                                   type="text"
                                   value={act.name || act.target_name || ''}
@@ -822,6 +860,31 @@ Tipos de Acciones Soportadas en "actions":
           onChange={(selectedCat) => {
             handleUpdateActionField(catSelectActionIdx, 'category', selectedCat);
             setCatSelectActionIdx(null);
+          }}
+        />
+      )}
+
+      {/* Modal In-App de Selección de Tile Existente en Despensa */}
+      {tileSelectActionIdx !== null && aiResponse?.actions?.[tileSelectActionIdx] && (
+        <CustomSelectModal
+          isOpen={true}
+          onClose={() => setTileSelectActionIdx(null)}
+          title="Seleccionar Tile a Sumar Stock"
+          options={activeItems.map(item => ({
+            value: item.id,
+            label: `${item.name} (Stock Actual: ${item.quantity} ${item.unit})`,
+            icon: item.emoji || '🛒'
+          }))}
+          value={aiResponse.actions[tileSelectActionIdx].target_id || ''}
+          onChange={(selectedTileId) => {
+            const found = activeItems.find(i => i.id === selectedTileId);
+            if (found) {
+              handleUpdateActionField(tileSelectActionIdx, 'type', 'update_stock');
+              handleUpdateActionField(tileSelectActionIdx, 'target_id', found.id);
+              handleUpdateActionField(tileSelectActionIdx, 'target_name', found.name);
+              handleUpdateActionField(tileSelectActionIdx, 'unit', found.unit || 'unid');
+            }
+            setTileSelectActionIdx(null);
           }}
         />
       )}
