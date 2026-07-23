@@ -76,7 +76,9 @@ Si la entrada es la foto o texto de una factura o ticket de caja (ej. HIPERMERCA
    - "Agua", "Leche", "Queso", "Jugo" DEBEN ir en "Bebidas y Lácteos".
    - "Harina", "Arroz", "Pasta" DEBEN ir en "Secos y Víveres".
    - "Tomate", "Cebolla", "Papa" DEBEN ir en "Vegetales y Frutas".
-3. **DEBES OBLIGATORIAMENTE GENERAR DOS TIPOS DE ACCIONES:**
+3. **Variantes Específicas de Productos (ej. 'Tomate Perita', 'Tomate Manzano', 'Queso Telita', 'Harina Pan Amarillo'):**
+   Si el producto en la factura es una variante específica (ej. 'Tomate Perita') y en el inventario actual solo existe 'Tomate', DEBES usar la acción "type": "create" para crear el nuevo tile específico con el nombre exacto de la factura ("Tomate Perita"). NO lo agrupes genéricamente a menos que sea 100% idéntico.
+4. **DEBES OBLIGATORIAMENTE GENERAR DOS TIPOS DE ACCIONES:**
    a) register_saldo_transaction: Para registrar la factura completa en SaldoVikingo con su desglose de items y precios.
    b) update_stock o create: Para sumar la cantidad comprada a la despensa en TuMercadoVikingo.
 
@@ -577,9 +579,62 @@ Tipos de Acciones Soportadas en "actions":
                         {/* Edición de Producto Creado o Actualizado en TuMercado */}
                         {(act.type === 'create' || act.type === 'add' || act.type === 'update_stock') && (
                           <div>
-                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#27AE60', display: 'block', marginBottom: '4px' }}>
-                              🛒 Producto TuMercado ({act.type === 'update_stock' ? 'Actualizar Stock' : 'Crear Nuevo'}):
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '800', color: '#27AE60' }}>
+                                🛒 Acciones en TuMercado:
+                              </span>
+                            </div>
+
+                            {/* Selector de Modo: Crear Nuevo Tile vs Sumar a Stock Existente */}
+                            <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', backgroundColor: '#EFECE6', padding: '3px', borderRadius: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  triggerHaptic(20);
+                                  handleUpdateActionField(actIdx, 'type', 'create');
+                                  const curName = act.name || act.target_name || 'Tomate Perita';
+                                  handleUpdateActionField(actIdx, 'name', curName);
+                                }}
+                                style={{
+                                  flex: 1,
+                                  padding: '5px 8px',
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  borderRadius: '6px',
+                                  border: 'none',
+                                  backgroundColor: (act.type === 'create' || act.type === 'add') ? '#2ECC71' : 'transparent',
+                                  color: (act.type === 'create' || act.type === 'add') ? '#FFFFFF' : '#666666',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                ➕ Crear Nuevo Tile
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  triggerHaptic(20);
+                                  handleUpdateActionField(actIdx, 'type', 'update_stock');
+                                  const curName = act.target_name || act.name || 'Tomate';
+                                  handleUpdateActionField(actIdx, 'target_name', curName);
+                                }}
+                                style={{
+                                  flex: 1,
+                                  padding: '5px 8px',
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  borderRadius: '6px',
+                                  border: 'none',
+                                  backgroundColor: act.type === 'update_stock' ? '#2980B9' : 'transparent',
+                                  color: act.type === 'update_stock' ? '#FFFFFF' : '#666666',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                ✏️ Sumar a Tile Existente
+                              </button>
+                            </div>
+
                             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '6px', marginBottom: '6px' }}>
                               <div>
                                 <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Nombre Producto:</label>
