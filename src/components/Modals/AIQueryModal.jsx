@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Sparkles, Mic, Camera, Send, Loader2, CheckCircle2, Edit2, Trash2 } from 'lucide-react';
+import { X, Sparkles, Mic, Camera, Send, Loader2, CheckCircle2, Edit2, Trash2, ChevronDown, Eye } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useHaptic } from '../../hooks/useHaptic';
 import { OFFICIAL_MARKET_CATEGORIES } from '../../constants/categories';
+import { ModalInApp } from './ModalInApp';
+import { CustomSelectModal } from './CustomSelectModal';
 
 export function AIQueryModal({ activeItems = [], onProcessAIResult, onClose }) {
   const { triggerHaptic } = useHaptic();
@@ -12,10 +14,16 @@ export function AIQueryModal({ activeItems = [], onProcessAIResult, onClose }) {
   const [loading, setLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedFileName, setSelectedFileName] = useState('');
+
+  // Modales in-app de previsualización de imagen y selección de categoría
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [catSelectActionIdx, setCatSelectActionIdx] = useState(null);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setSelectedFileName(file.name || 'factura_ticket.jpg');
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result);
@@ -203,19 +211,53 @@ Tipos de Acciones Soportadas en "actions":
   };
 
   return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card ai-modal-card" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="ai-modal-title">
-            <Sparkles size={20} className="sparkles-icon" />
+    <div 
+      className="modal-overlay" 
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        padding: '16px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div 
+        className="modal-card ai-modal-card" 
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: '460px',
+          maxHeight: '85vh',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '20px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          overflowY: 'auto',
+          boxSizing: 'border-box',
+          margin: 'auto'
+        }}
+      >
+        <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="ai-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '17px' }}>
+            <Sparkles size={20} className="sparkles-icon" color="#2ECC71" />
             <span>Asistente IA Vikingo</span>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>
-            <X size={18} />
+          <button className="modal-close-btn" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#777' }}>
+            <X size={20} />
           </button>
         </div>
 
-        <p className="ai-modal-desc">
+        <p className="ai-modal-desc" style={{ fontSize: '13px', color: '#555555', margin: 0, lineHeight: '1.4' }}>
           Escanea tu factura o escribe tu compra. Puedes revisar y editar cualquier dato (nombre, categoría o precio) antes de confirmar.
         </p>
 
@@ -227,18 +269,19 @@ Tipos de Acciones Soportadas en "actions":
             placeholder="Ej: 'Compré 650g de cebolla por 35 Bs y 1 Agua Minalba 5LT por 4462 Bs'"
             value={promptText}
             onChange={e => setPromptText(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: '10px', border: '1px solid #D1C9BF', fontSize: '13px' }}
           />
         </div>
 
-        {/* Adjuntar Imagen con Thumbnail Preview y Botón Eliminar */}
+        {/* Adjuntar Imagen con Thumbnail Preview Interactivo y Botón Eliminar */}
         <div className="ai-file-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
-          <label className="btn-file-label" style={{ cursor: 'pointer' }}>
+          <label className="btn-file-label" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '10px', backgroundColor: '#F4F1EA', border: '1px solid #D8D2C5', fontSize: '12px', fontWeight: '700', color: '#444' }}>
             <Camera size={16} />
             <span>Escanear Factura / Ticket</span>
             <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
           </label>
 
-          {/* Previsualización tipo Thumbnail con Botón Eliminar X */}
+          {/* Previsualización tipo Thumbnail Interactivo (Hacer tap abre el modal de imagen completa) */}
           {selectedImage && (
             <div 
               style={{
@@ -247,7 +290,7 @@ Tipos de Acciones Soportadas en "actions":
                 gap: '10px',
                 padding: '8px 12px',
                 backgroundColor: '#F8F6F0',
-                border: '1.5px solid #E2DCCF',
+                border: '1.5px solid #2ECC71',
                 borderRadius: '12px',
                 width: '100%',
                 boxSizing: 'border-box'
@@ -256,21 +299,29 @@ Tipos de Acciones Soportadas en "actions":
               <img 
                 src={selectedImage} 
                 alt="Previsualización ticket" 
+                onClick={() => { triggerHaptic(20); setShowImagePreview(true); }}
                 style={{
                   width: '52px',
                   height: '52px',
                   objectFit: 'cover',
                   borderRadius: '8px',
-                  border: '1px solid #D1C9BF'
+                  border: '1px solid #D1C9BF',
+                  cursor: 'pointer'
                 }} 
+                title="Toca para ver imagen completa"
               />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                <span style={{ fontSize: '12px', fontWeight: '800', color: '#2C2C2C' }}>📷 Imagen Cargarada</span>
-                <span style={{ fontSize: '11px', color: '#666666' }}>Lista para analizar con la IA</span>
+              <div 
+                onClick={() => { triggerHaptic(20); setShowImagePreview(true); }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, cursor: 'pointer' }}
+              >
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#2C2C2C', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  📷 {selectedFileName || 'Factura Cargada'} <Eye size={12} color="#27AE60" />
+                </span>
+                <span style={{ fontSize: '11px', color: '#27AE60', fontWeight: '600' }}>Toca para ver foto completa</span>
               </div>
               <button
                 type="button"
-                onClick={() => { triggerHaptic(20); setSelectedImage(null); }}
+                onClick={(e) => { e.stopPropagation(); triggerHaptic(20); setSelectedImage(null); setSelectedFileName(''); }}
                 style={{
                   backgroundColor: '#FFEBEE',
                   color: '#E74C3C',
@@ -341,156 +392,174 @@ Tipos de Acciones Soportadas en "actions":
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {aiResponse.actions.map((act, actIdx) => (
-                    <div 
-                      key={actIdx} 
-                      style={{ 
-                        backgroundColor: '#F9F8F6', 
-                        border: '1px solid #E8E3D8', 
-                        borderRadius: '10px', 
-                        padding: '10px', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '6px',
-                        position: 'relative'
-                      }}
-                    >
-                      {/* Botón para eliminar esta acción individual */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAction(actIdx)}
-                        style={{
-                          position: 'absolute',
-                          top: '6px',
-                          right: '6px',
-                          backgroundColor: 'transparent',
-                          border: 'none',
-                          color: '#E74C3C',
-                          cursor: 'pointer',
-                          padding: '2px'
+                  {aiResponse.actions.map((act, actIdx) => {
+                    const matchedCatObj = OFFICIAL_MARKET_CATEGORIES.find(c => c.id === act.category);
+
+                    return (
+                      <div 
+                        key={actIdx} 
+                        style={{ 
+                          backgroundColor: '#F9F8F6', 
+                          border: '1px solid #E8E3D8', 
+                          borderRadius: '10px', 
+                          padding: '10px', 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: '6px',
+                          position: 'relative'
                         }}
-                        title="Descartar esta acción"
                       >
-                        <Trash2 size={13} />
-                      </button>
+                        {/* Botón para eliminar esta acción individual */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAction(actIdx)}
+                          style={{
+                            position: 'absolute',
+                            top: '6px',
+                            right: '6px',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: '#E74C3C',
+                            cursor: 'pointer',
+                            padding: '2px'
+                          }}
+                          title="Descartar esta acción"
+                        >
+                          <Trash2 size={13} />
+                        </button>
 
-                      {/* Edición de Transacción SaldoVikingo */}
-                      {act.type === 'register_saldo_transaction' && (
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: '800', color: '#2980B9', display: 'block', marginBottom: '4px' }}>
-                            💳 Movimiento en SaldoVikingo:
-                          </span>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                            <div>
-                              <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Comercio / Concepto:</label>
-                              <input
-                                type="text"
-                                value={act.mainDescription || ''}
-                                onChange={e => handleUpdateActionField(actIdx, 'mainDescription', e.target.value)}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
-                              />
-                            </div>
-                            <div>
-                              <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Monto Total ({act.currency_original || 'VES'}):</label>
-                              <input
-                                type="number"
-                                step="any"
-                                value={act.amount_original || ''}
-                                onChange={e => handleUpdateActionField(actIdx, 'amount_original', parseFloat(e.target.value) || 0)}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Desglose de Items */}
-                          {act.breakdown && act.breakdown.length > 0 && (
-                            <div style={{ marginTop: '6px', paddingTop: '4px', borderTop: '1px dashed #E0DBCF' }}>
-                              <span style={{ fontSize: '10px', fontWeight: '700', color: '#777' }}>Desglose de Ítems:</span>
-                              {act.breakdown.map((item, bIdx) => (
-                                <div key={bIdx} style={{ display: 'flex', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
-                                  <input
-                                    type="text"
-                                    value={item.description || ''}
-                                    onChange={e => handleUpdateBreakdownItem(actIdx, bIdx, 'description', e.target.value)}
-                                    style={{ flex: 1, padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #D1C9BF' }}
-                                  />
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={item.amount || ''}
-                                    onChange={e => handleUpdateBreakdownItem(actIdx, bIdx, 'amount', parseFloat(e.target.value) || 0)}
-                                    style={{ width: '70px', padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #D1C9BF', textAlign: 'right' }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Edición de Producto Creado o Actualizado en TuMercado */}
-                      {(act.type === 'create' || act.type === 'add' || act.type === 'update_stock') && (
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: '800', color: '#27AE60', display: 'block', marginBottom: '4px' }}>
-                            🛒 Producto TuMercado ({act.type === 'update_stock' ? 'Actualizar Stock' : 'Crear Nuevo'}):
-                          </span>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '6px', marginBottom: '4px' }}>
-                            <div>
-                              <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Nombre Producto:</label>
-                              <input
-                                type="text"
-                                value={act.name || act.target_name || ''}
-                                onChange={e => {
-                                  if (act.type === 'update_stock') handleUpdateActionField(actIdx, 'target_name', e.target.value);
-                                  else handleUpdateActionField(actIdx, 'name', e.target.value);
-                                }}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
-                              />
-                            </div>
-                            <div>
-                              <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Cantidad ({act.unit || 'unid'}):</label>
-                              <input
-                                type="number"
-                                step="any"
-                                value={act.quantity !== undefined ? act.quantity : 1}
-                                onChange={e => handleUpdateActionField(actIdx, 'quantity', parseFloat(e.target.value) || 0)}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Selector de Categoría Oficial */}
+                        {/* Edición de Transacción SaldoVikingo */}
+                        {act.type === 'register_saldo_transaction' && (
                           <div>
-                            <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Categoría Oficial:</label>
-                            <select
-                              value={act.category || 'Otros'}
-                              onChange={e => handleUpdateActionField(actIdx, 'category', e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #2ECC71', backgroundColor: '#FFFFFF', color: '#2C2C2C', boxSizing: 'border-box' }}
-                            >
-                              {OFFICIAL_MARKET_CATEGORIES.map(c => (
-                                <option key={c.id} value={c.id}>
-                                  {c.icon} {c.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      )}
+                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#2980B9', display: 'block', marginBottom: '4px' }}>
+                              💳 Movimiento en SaldoVikingo:
+                            </span>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                              <div>
+                                <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Comercio / Concepto:</label>
+                                <input
+                                  type="text"
+                                  value={act.mainDescription || ''}
+                                  onChange={e => handleUpdateActionField(actIdx, 'mainDescription', e.target.value)}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Monto Total ({act.currency_original || 'VES'}):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={act.amount_original || ''}
+                                  onChange={e => handleUpdateActionField(actIdx, 'amount_original', parseFloat(e.target.value) || 0)}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
+                                />
+                              </div>
+                            </div>
 
-                      {/* Otro tipo de acciones */}
-                      {act.type === 'update_threshold' && (
-                        <div style={{ fontSize: '11px' }}>
-                          <span>🔄 Mínimo de alerta: </span>
-                          <input
-                            type="number"
-                            value={act.min_threshold || 0}
-                            onChange={e => handleUpdateActionField(actIdx, 'min_threshold', parseFloat(e.target.value) || 0)}
-                            style={{ width: '50px', padding: '2px 4px', fontSize: '11px', borderRadius: '4px', border: '1px solid #D1C9BF' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                            {/* Desglose de Items */}
+                            {act.breakdown && act.breakdown.length > 0 && (
+                              <div style={{ marginTop: '6px', paddingTop: '4px', borderTop: '1px dashed #E0DBCF' }}>
+                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#777' }}>Desglose de Ítems:</span>
+                                {act.breakdown.map((item, bIdx) => (
+                                  <div key={bIdx} style={{ display: 'flex', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
+                                    <input
+                                      type="text"
+                                      value={item.description || ''}
+                                      onChange={e => handleUpdateBreakdownItem(actIdx, bIdx, 'description', e.target.value)}
+                                      style={{ flex: 1, padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #D1C9BF' }}
+                                    />
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={item.amount || ''}
+                                      onChange={e => handleUpdateBreakdownItem(actIdx, bIdx, 'amount', parseFloat(e.target.value) || 0)}
+                                      style={{ width: '70px', padding: '3px 6px', fontSize: '11px', borderRadius: '4px', border: '1px solid #D1C9BF', textAlign: 'right' }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Edición de Producto Creado o Actualizado en TuMercado */}
+                        {(act.type === 'create' || act.type === 'add' || act.type === 'update_stock') && (
+                          <div>
+                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#27AE60', display: 'block', marginBottom: '4px' }}>
+                              🛒 Producto TuMercado ({act.type === 'update_stock' ? 'Actualizar Stock' : 'Crear Nuevo'}):
+                            </span>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '6px', marginBottom: '6px' }}>
+                              <div>
+                                <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Nombre Producto:</label>
+                                <input
+                                  type="text"
+                                  value={act.name || act.target_name || ''}
+                                  onChange={e => {
+                                    if (act.type === 'update_stock') handleUpdateActionField(actIdx, 'target_name', e.target.value);
+                                    else handleUpdateActionField(actIdx, 'name', e.target.value);
+                                  }}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: '10px', color: '#555', fontWeight: '700' }}>Cantidad ({act.unit || 'unid'}):</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={act.quantity !== undefined ? act.quantity : 1}
+                                  onChange={e => handleUpdateActionField(actIdx, 'quantity', parseFloat(e.target.value) || 0)}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #D1C9BF', boxSizing: 'border-box' }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Selector de Categoría Oficial en Modal In-App con Fondo Difuminado */}
+                            <div>
+                              <label style={{ fontSize: '10px', color: '#555', fontWeight: '700', marginBottom: '2px', display: 'block' }}>Categoría Oficial:</label>
+                              <button
+                                type="button"
+                                onClick={() => { triggerHaptic(20); setCatSelectActionIdx(actIdx); }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  width: '100%',
+                                  padding: '7px 10px',
+                                  borderRadius: '8px',
+                                  border: '1.5px solid #2ECC71',
+                                  backgroundColor: '#FFFFFF',
+                                  color: '#2C2C2C',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>{matchedCatObj?.icon || '🏷️'}</span>
+                                  <span>{act.category || 'Otros'}</span>
+                                </div>
+                                <ChevronDown size={14} color="#777777" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Otro tipo de acciones */}
+                        {act.type === 'update_threshold' && (
+                          <div style={{ fontSize: '11px' }}>
+                            <span>🔄 Mínimo de alerta: </span>
+                            <input
+                              type="number"
+                              value={act.min_threshold || 0}
+                              onChange={e => handleUpdateActionField(actIdx, 'min_threshold', parseFloat(e.target.value) || 0)}
+                              style={{ width: '50px', padding: '2px 4px', fontSize: '11px', borderRadius: '4px', border: '1px solid #D1C9BF' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Botón de Confirmación Definitiva */}
@@ -540,6 +609,75 @@ Tipos de Acciones Soportadas en "actions":
           </div>
         )}
       </div>
+
+      {/* Modal In-App de Previsualización de Imagen Completa en Tamaño Grande */}
+      {showImagePreview && selectedImage && (
+        <ModalInApp
+          isOpen={true}
+          onClose={() => setShowImagePreview(false)}
+          title="📷 Previsualización de Imagen"
+          maxWidth="420px"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <img
+              src={selectedImage}
+              alt="Factura o Ticket Completo"
+              style={{
+                width: '100%',
+                maxHeight: '60vh',
+                objectFit: 'contain',
+                borderRadius: '14px',
+                border: '1px solid #D1C9BF',
+                backgroundColor: '#1E1E1E'
+              }}
+            />
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#2C2C2C', display: 'block' }}>
+                {selectedFileName || 'Factura_Ticket.jpg'}
+              </span>
+              <span style={{ fontSize: '11px', color: '#666666' }}>
+                Imagen adjuntada para análisis multimodal con la IA
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowImagePreview(false)}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: '#2ECC71',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              Cerrar Previsualización
+            </button>
+          </div>
+        </ModalInApp>
+      )}
+
+      {/* Modal In-App de Selección de Categoría Oficial con Fondo Difuminado */}
+      {catSelectActionIdx !== null && aiResponse?.actions?.[catSelectActionIdx] && (
+        <CustomSelectModal
+          isOpen={true}
+          onClose={() => setCatSelectActionIdx(null)}
+          title="Seleccionar Categoría Oficial"
+          options={OFFICIAL_MARKET_CATEGORIES.map(c => ({
+            value: c.id,
+            label: c.name,
+            icon: c.icon
+          }))}
+          value={aiResponse.actions[catSelectActionIdx].category || 'Otros'}
+          onChange={(selectedCat) => {
+            handleUpdateActionField(catSelectActionIdx, 'category', selectedCat);
+            setCatSelectActionIdx(null);
+          }}
+        />
+      )}
     </div>,
     document.body
   );
