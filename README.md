@@ -57,8 +57,9 @@ graph TD
 ```text
 vikingonet-tumercado/
 ├── index.html (Plantilla HTML con importación de Google Fonts: Outfit y JetBrains Mono)
-├── package.json (Dependencias: @supabase/supabase-js, @google/generative-ai, lucide-react, vite)
-├── vite.config.js (Configuración de Vite con HTTPS y compilación rápida)
+├── package.json (React 19, Vite 8, @supabase/supabase-js, @google/generative-ai, lucide-react)
+├── vite.config.js (Configuración con base: '/tumercado/', basicSsl y proxy de funciones)
+├── netlify.toml (Mapeo de rutas /tumercado/* y /tumercadovikingo/* hacia SPA)
 ├── .env.example (Variables de entorno requeridas para Supabase y Gemini API)
 ├── README.md (Manual técnico y documentación detallada del proyecto)
 │
@@ -193,6 +194,15 @@ Cada tile en [ProductTile.jsx](file:///z:/REPOS/vikingonet-tumercado/src/compone
 ### 5.7 Layout 100dvh Zero-Scroll y 2 Columnas Estrictas
 - Se impuso `height: 100dvh`, `position: fixed; inset: 0;` y `overflow-x: hidden` en `html`, `body` y `.app-container`.
 - Se fijó la cuadrícula `.tiles-grid` en **2 columnas amplias (`grid-template-columns: repeat(2, 1fr)`)** dentro del contenedor de 480px, eliminando cualquier desbordamiento o scroll lateral.
+
+---
+
+### 5.8 🌐 Ruteo, Base Path y Proxy Inverso (`vikingonetworks`)
+- **Base Path en Vite:** `vite.config.js` define `base: '/tumercado/'`. Esto garantiza que los bundles estáticos (CSS, JS) generados por Vite se soliciten bajo el prefijo `/tumercado/assets/...`.
+- **Integración con Router Principal (`vikingonet.com`):** El repositorio orquestador `vikingonetworks` redirige las peticiones entrantes:
+  - `/tumercadovikingo/*` ➔ `https://vikingo-tumercado.netlify.app/tumercadovikingo/:splat`
+  - `/tumercado/*` ➔ `https://vikingo-tumercado.netlify.app/tumercado/:splat`
+- **Reescrutura Interna en Netlify:** En `netlify.toml` de `vikingonet-tumercado`, las rutas `/tumercadovikingo/*` y `/tumercado/*` se reescriben a `/:splat` internamente, permitiendo servir la SPA tanto en acceso directo como bajo el dominio unificado `vikingonet.com/tumercado`.
 
 ---
 
